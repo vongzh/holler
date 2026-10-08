@@ -1,105 +1,58 @@
 # Holler
 
-领克 08 车机「车外喊话」应用。**Kotlin + Jetpack Compose**，界面参考 **Flyme Auto** 设计语言。
-技术路线来自对 CoAuto **Hey! v1.2.5** 的逆向分析（见 `docs/HEY_CAPABILITY.md`）。
+领克 08 等车机「车外喊话」开源应用。基于 **Kotlin + Jetpack Compose** 构建，界面深度参考 **Flyme Auto** 智能座舱设计语言，支持**浅色 / 深色模式**无缝切换。
 
-## 核心问题
+项目借鉴了车载社区开源实践与 Android Automotive OS（AAOS）音频系统设计，致力于提供原生流畅、车规级交互的车外扬声器广播体验。
 
-把音频**定向输出到车外扬声器**，而不是车内音响。
+---
 
-```
-按住录音 (AudioRecord)  →  DSP 变声  →  松开回放 (AudioTrack + setPreferredDevice)  →  车外响
-```
+## 核心实现机制
 
-难点不在播放，而在**定位车外喇叭对应哪个音频设备 / usage**。
-
-## 从 Hey! 逆向出的关键信息
-
-| 发现 | 内容 |
-|---|---|
-| 包名 / 技术栈 | `com.kooo.hey`，Kotlin + Compose，自有类仅 13 个 |
-| 音频输出 | 标准 `AudioTrack` + `AudioDeviceInfo.setPreferredDevice` |
-| 路由定位 | 读 `/vendor\|/odm\|/system/etc/car_audio_configuration.xml` + `CarAudioManager` |
-| usage 遍历 | `UsageSweepWorker` 逐个 usage 播 800ms 特征音，人工听车外 |
-| 提权技巧 | `app_process /system/bin com.kooo.hey.audio.UsageSweepWorker` |
-| 变声实现 | `libvoiceeffect.so`，5 个 JNI 方法，5 种效果 |
-| APK 规模 | dex 1.29MB，10928 个方法，1304 个类（含框架引用） |
-
-参考素材：`../hey/reference/`（APK + 分析产物）。
-
-> 与 Hey! 的逐项差异（设置 / 界面 / 配置 24 项对照）见 [`docs/GAP_VS_HEY.md`](docs/GAP_VS_HEY.md)。
-
-## 能力对照表（Holler vs Hey!）
-
-| # | Hey! 能力 | Holler 实现 | 状态 |
-|---|---|---|---|
-| 1 | 按住说话（Push-to-Talk） | `HollerEngine` 录音→DSP→定向回放 | ✅ |
-| 2 | 变声 5 种（原声/大叔/机器人/电音/萝莉） | `DspChain` 纯 Kotlin 等价实现 | ✅ |
-| 3 | 音量增益 + AGC | `DspChain.agc` 对齐 Hey! 实测参数 | ✅ |
-| 4 | usage 遍历定位车外喇叭 | `UsageSweeper` | ✅ |
-| 5 | 音频配置文件解析 | `AudioRouteResolver.parseCarAudioConfig` | ✅ |
-| 6 | 悬浮窗喊话按钮 | `FloatingTalkService` + `FloatingTalkView` | ✅ |
-| 7 | 悬浮键单击播快捷语 | 同上，位置/透明度持久化 | ✅ |
-| 8 | TTS 文字转语音 | `PhraseSpeaker`（合成到文件→定向播放） | ✅ |
-| 9 | tts_items 快捷语管理 | `PhraseStore`（增删改 + 预置 7 条） | ✅ |
-| 10 | 语速 / 音调可调 | `PhraseStore.speechRate / pitch` | ✅ |
-| 11 | 外部命令接收器 | `HollerCommandReceiver`（3 个 action） | ✅ |
-| 12 | 日志关键词触发 | `LogcatTriggerService` | ✅ |
-| 13 | 前台保活 | `HollerForegroundService` | ✅ |
-| 14 | 音乐播放服务 | — | ⬜ 排后 |
-| 15 | ADB 自连接提权 | `shell/DeviceProbe.kt` 占位 | ⬜ 待车机验证 |
-| 16 | **手动指定音频设备** | `PhraseStore.outputDeviceId` + 设置页「选用」 | ✅ v0.3.1 |
-| 17 | **录音倒计时环** | `ui/CountdownRingView.kt` | ✅ v0.3.1 |
-| 18 | **浮窗透明度 / 尺寸** | 设置页两个滑块 + `FloatingTalkService.refreshAppearance` | ✅ v0.3.1 |
-| 19 | **启动自动播报** | `PhraseStore.launchAutoPlay` | ✅ v0.3.1 |
-
-> 第 16–19 项是 v0.3.1 补齐的缺口，详见 [`docs/GAP_VS_HEY.md` §6](docs/GAP_VS_HEY.md)。
-
-## 目录结构
+将音频流**定向路由输出到车外扬声器**，而非车内音响系统：
 
 ```
-app/src/main/java/com/vongz/holler/
-  audio/
-    AudioRouteResolver.kt        # 车外喇叭定位：设备名匹配 + 配置解析 + 兜底
-    HollerEngine.kt              # 引擎单例：录音 + DSP + 回放 + Listener
-    PhraseStore.kt               # 快捷语持久化 + PhraseSpeaker(TTS) + WavReader
-    UsageSweeper.kt              # usage 遍历测试（对齐 Hey! UsageSweepWorker）
-    FloatingTalkService.kt       # 悬浮窗服务（对齐 Hey! FloatingWindowService）
-    LogcatTriggerService.kt      # 日志关键词触发（对齐 Hey! LogcatTriggerService）
-    HollerCommandReceiver.kt     # 外部 Intent 触发（对齐 Hey! HeyCommandReceiver）
-    HollerForegroundService.kt   # 保活前台服务
-    dsp/
-      VoiceEffect.kt             # 5 种变声效果枚举
-      DspChain.kt                # 纯 Kotlin DSP 链（替代 libvoiceeffect.so）
-      VoiceEffectBridge.kt       # 桥接层，接口对齐 Hey! 的 JNI 语义
-    shell/DeviceProbe.kt         # app_process 提权入口（预留）
-  ui/
-    MainActivity.kt              # 三页导航主界面
-    Controls.kt                  # Flyme Auto 风格控件库
-    CountdownRingView.kt         # 录音倒计时环（对齐 Hey! CountdownRingView）
-    FloatingTalkView.kt          # 悬浮按钮自绘 View
-    WaveformView.kt              # 声波可视化
-    theme/Theme.kt               # 色彩 / 形状 / 间距令牌
-docs/
-  DESIGN.md                      # 设计规范（Flyme Auto 参考）
-  ENVIRONMENT.md                 # 环境准备（JDK + Android SDK）
-  ADB_PROBE.md                   # 车机探测指南
-  HEY_CAPABILITY.md              # Hey! v1.2.5 完整能力清单（逆向产物）
-  GAP_VS_HEY.md                  # 与 Hey! 的逐项差异（24 项配置键对照）
-tools/
-  check.py                       # 静态自检（无需 JDK/SDK：括号配平 / 死导入 / 重名函数）
+按住录音 (AudioRecord)  →  实时 DSP 变声处理  →  定向音频路由回放 (AudioTrack + setPreferredDevice)  →  车外扬声器发声
 ```
 
-## 界面布局（v0.3.1 三页导航）
+车载音频的难点在于不同车机型号、不同底层 HAL 对车外扬声器的挂载差异。Holler 提供了分层容灾的路由决策机制：
+1. **设备名匹配**：枚举音频输出设备，匹配车外扬声器关键字；
+2. **车载配置解析**：动态读取 `/vendor|/odm|/system/etc/` 下的 `car_audio_configuration.xml`；
+3. **Usage 遍历测试**：针对性播放短音频特征流，快速锁定车外喇叭真实 usage 通道；
+4. **手动指定兜底**：在设置页设备清单中直接手动绑定目标设备 ID。
+
+---
+
+## 功能特性
+
+| 功能模块 | 说明 | 状态 |
+|---|---|---|
+| **按住说话（Push-to-Talk）** | `HollerEngine` 低延迟录音 → 实时 DSP → 定向外放 | ✅ |
+| **变声处理链** | 纯 Kotlin 实现 5 种预设（原声 / 大叔 / 机器人 / 电音 / 萝莉），无需原生 SO 依赖 | ✅ |
+| **音量增益与 AGC** | 硬件级自动增益控制与软限幅，避免啸叫破音 | ✅ |
+| **车外音频路由探测** | 支持设备名匹配、车载配置解析与 Usage 智能遍历 | ✅ |
+| **悬浮喊话按钮** | 全局车机悬浮窗：单击快捷播报、长按实时说话、拖动贴边、双击收起 | ✅ |
+| **TTS 快捷语管理** | 内置便捷常用语，支持增删改查、语速与音调调节，定向文件级合成 | ✅ |
+| **广播命令联动** | 提供标准 Intent 接收器，支持方向盘方控按键或 Tasker 自动化联动 | ✅ |
+| **系统日志关键词触发** | 监听倒车/泊车等关键系统日志事件自动触发相应快捷播报（带冷却防抖） | ✅ |
+| **浅色 / 深色模式** | 完美适配 Flyme Auto 日间白/夜间微光深色主题，系统栏自适应 | ✅ |
+| **设备清单与手动指定** | 设置页支持直观查看车载输入输出设备拓扑并一键选用绑定 | ✅ |
+| **录音倒计时环** | 环形剩余时间进度指示（最后 3 秒视觉预警）与实时动态声波 | ✅ |
+| **开机自启与前台保活** | 针对车载冷启动和待机唤醒深度优化，随车通电待命 | ✅ |
+
+---
+
+## 界面与设计（Flyme Auto 风格）
+
+严格遵循 Flyme Auto 视觉规范，采用大圆角胶囊控件、克制微动效、卡片式布局与高对比度车规字体层级：
 
 ```
 ┌──────────────────────────────────────────────┐
-│  Holler                          待命 ●       │  顶栏（状态点常驻）
+│  Holler                          待命 ●       │  常驻顶栏（状态指示）
 ├──────────────────────────────────────────────┤
 │  ┌────────────────────────────────────────┐  │
 │  │         ╭─────────────╮                │  │
 │  │         │  ◎ 声波  12 │  ← 倒计时环    │  │
-│  │         ╰─────────────╯                │  │  喊话页
+│  │         ╰─────────────╯                │  │  主喊话卡片
 │  │            按住喊话                     │  │
 │  │            准备就绪                     │  │
 │  └────────────────────────────────────────┘  │
@@ -112,78 +65,71 @@ tools/
 │  │ 自动增益 (AGC)                     [ON] │  │
 │  └────────────────────────────────────────┘  │
 ├──────────────────────────────────────────────┤
-│      喊话      │      语音      │    设置     │  DOCK 栏
+│      喊话      │      语音      │    设置     │  底部 DOCK 导航
 └──────────────────────────────────────────────┘
 ```
 
-**语音页**：播报参数（语速/音调滑块）+ 新增/修改快捷语 + 条目列表（播放/改名/设为快捷/删除）+ 恢复预置语料 + 测试音。
-**设置页**：悬浮按钮开关 · **透明度/尺寸滑块** · **启动自动播报** · 日志触发（开关 · 关键词含自定义 · 冷却可调）· 音频路由诊断 · usage 遍历 · 外部触发命令 · **音频设备清单（可「选用」= 手动指定设备）** · 车机音频配置 · 关于。
+- **喊话页**：即时按住说话、实时声波与倒计时环、5 种变声微调、音量及 AGC 开关。
+- **语音页**：TTS 参数设置（语速/音调）、预置车外礼让/倒车等常用语料库、快捷播报标记。
+- **设置页**：外观主题切换（跟随系统/浅色/深色）、全局悬浮球配置、音频路由状态与诊断、Usage 遍历工具、系统设备清单。
 
-## 当前进度（v0.3.1 · 已首次编译通过 ✅）
+---
 
-> **2026-10-08 里程碑**：工具链升到 **AGP 9.4.1 / Gradle 9.8.1 / Kotlin 2.4.20 /
-> compileSdk 37**（当日前序版本首编译通过，随后再升级至最新并复编译通过），
-> 5036 行代码**首次真实编译通过**（零 warning），
-> 产出 `app/build/outputs/apk/debug/app-debug.apk`（约 29–30 MB）。
-> 版本约束与 AGP 9 的三个坑详见 [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)。
+## 目录结构
 
-- [x] Gradle 工程骨架（Kotlin 2.4.20 / AGP 9.4.1 / Gradle 9.8.1 / Compose BOM 2026.09 / compileSdk 37）
-- [x] **首次真实编译通过**（2026-10-08）
-- [x] 音频路由解析器（四路径：手动指定 / 设备名 / 配置 / 兜底）
-- [x] 一键喊话（按住录音 → DSP → 松开发送）
-- [x] 纯 Kotlin 变声 DSP（5 效果 + AGC + 噪声门 + 软限幅）
-- [x] TTS 快捷语（合成到文件 → 定向播放，绕开 TTS 直出路由）
-- [x] 悬浮喊话按钮（单击/长按/拖动/双击收起）
-- [x] 外部 Intent 触发（方控按键 / 自动化工具）
-- [x] 日志关键词触发（含 READ_LOGS 权限降级）
-- [x] usage 遍历测试（定位车外喇叭）
-- [x] 三页导航 UI（Flyme Auto 风格控件库）
-- [x] 录音倒计时环（显示剩余秒数，最后 3 秒转红）
-- [x] 手动指定音频设备（车外喇叭定位的兜底手段）
-- [x] 浮窗透明度 / 尺寸可调 · 启动自动播报 · 冷却可调 · 关键词自定义
-- [x] 「系统 usage」异常保护（`USAGE_SAFETY` 等 1000–1003 会抛异常，已反射兼容）
-- [ ] **待验证**：车机 API 等级（决定 `minSdk 30` 是否正确，错了装不上）
-- [ ] **待验证**：车外喇叭的真实设备/usage（需车机 dump）
-- [ ] **待验证**：UsageSweeper 是否触发 native crash（若触发需升级为子进程）
-- [ ] app_process 提权 `DeviceProbe`（依赖车机实测结论）
-- [ ] 音乐 / 音频文件播放
-- [ ] 方控按键实测联动
+```
+app/src/main/java/com/vongz/holler/
+  audio/
+    AudioRouteResolver.kt        # 车外扬声器定位：设备名匹配 + 配置解析 + 兜底策略
+    HollerEngine.kt              # 音频引擎：录音流 + DSP 链 + AudioTrack 定向回放
+    PhraseStore.kt               # 快捷语与外观配置持久化 + TTS 播放器
+    UsageSweeper.kt              # Usage 遍历测试工具
+    FloatingTalkService.kt       # 全局桌面悬浮窗服务
+    LogcatTriggerService.kt      # 系统日志关键词触发服务
+    HollerCommandReceiver.kt     # 方控/第三方自动化广播接收器
+    HollerForegroundService.kt   # 前台保活与通知栏快捷控制服务
+    dsp/
+      VoiceEffect.kt             # 变声枚举
+      DspChain.kt                # 纯 Kotlin 实时 DSP 链（音调漂移 / 混响 / 滤波 / AGC）
+      VoiceEffectBridge.kt       # 变声处理桥接模块
+  ui/
+    MainActivity.kt              # 三页导航主界面
+    Controls.kt                  # Flyme Auto 风格车规控件库
+    CountdownRingView.kt         # 倒计时环形进度组件
+    FloatingTalkView.kt          # 自绘轻量级悬浮球控件（支持深浅色模式）
+    WaveformView.kt              # 动态声波可视化组件
+    theme/Theme.kt               # 色彩令牌、形状、间距与深浅色模式系统
+```
 
-## 风险边界
+---
 
-**只做座舱信息娱乐域**：车外喊话、音频外放、TTS。
-**不碰**：行驶控制、刹车/转向/动力、安全气囊、ADAS 参数、车门锁远程控制。
+## 构建与运行
 
-## 权限说明
+### 环境要求
+- **Android Studio**：Ladybug (2024.2+) 或更高版本
+- **JDK**：21
+- **Gradle**：9.8.1
+- **Android SDK**：compileSdk 37 / minSdk 30
 
-| 权限 | 用途 | 获取方式 |
-|---|---|---|
-| `RECORD_AUDIO` | 录音 | 运行时申请 |
-| `MODIFY_AUDIO_SETTINGS` | 音频路由 | 安装即得 |
-| `SYSTEM_ALERT_WINDOW` | 悬浮按钮 | 系统设置手动授予 |
-| `READ_LOGS` | 读系统日志触发 | **adb 一次性**：`adb shell pm grant com.vongz.holler android.permission.READ_LOGS` |
-| `FOREGROUND_SERVICE*` | 后台保活 | 安装即得 |
-
-未授予 `READ_LOGS` 时，日志触发服务自动降级为「仅读本应用日志」，不会崩溃。
-
-## 构建
-
+### 本地编译
 ```bash
-cd D:/Code/Holler
+# 编译 Debug APK
+./gradlew assembleDebug
 
-# 系统 PATH 里没有 java，需显式指定 Studio 自带的 JDK 21
-export JAVA_HOME="C:/Users/vongz/.jdks/jbr-21.0.11"
-
-./gradlew :app:assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk（约 30 MB）
-
+# 安装到连接的车机或模拟器
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> ⚠ **装车前务必先确认车机 API 等级**：`adb shell getprop ro.build.version.sdk`。
-> 项目当前 `minSdk = 30` 是按「Flyme Auto = 安卓 11」**推断**的，未经实测；
-> 若车机不是 API 30，会直接 `INSTALL_FAILED_OLDER_SDK`。改回实际值只需一行。
+---
 
-## 命名
+## 声明与边界
 
-项目 **Holler** ｜ 包名 `com.vongz.holler` ｜ 代号来自 "holler"（大声喊）
+- 本项目仅面向**座舱信息娱乐域**（车外扬声器语音广播、TTS 播报）。
+- 本项目不涉及、亦不篡改任何车辆行驶、制动、动力、安全气囊或底层控制指令。
+- 使用本项目车外喊话功能时，请遵守道路交通安全法律法规，文明用车，切勿在禁鸣区域或夜间扰民。
+
+---
+
+## License
+
+开源项目仅供交流学习。

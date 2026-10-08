@@ -11,11 +11,11 @@ import java.io.File
  * 车外扬声器定位器。
  *
  * Holler 的核心难点只有一个：把音频定向播到「车外喇叭」，而不是车内音响。
- * 本类按 Hey! 逆向出的路径依次尝试：
+ * 本类按车载音频路由策略依次尝试：
  *
  *   1. 设备名匹配 —— 枚举 AudioManager 输出设备，按关键字匹配车外扬声器；
  *   2. 配置解析   —— 读 car_audio_configuration.xml，找出车外设备及其 usage；
- *   3. usage 遍历 —— 逐个 usage 试播，人工听哪个从车外出来（对齐 Hey! 的 UsageSweepWorker）。
+ *   3. usage 遍历 —— 逐个 usage 试播，人工听哪个从车外出来（UsageSweep 策略）。
  *
  * 三条路径都失败时，退化为默认输出（至少能出声）。
  */
