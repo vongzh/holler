@@ -116,11 +116,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** 页面枚举（替代旧的 dockPage Int，语义更清晰）。 */
-private enum class Page(val label: String) {
-    TALK("喊话"),
-    PHRASE("语音"),
-    SETTINGS("设置"),
+/** 页面枚举（带车规图标与清晰语义）。 */
+private enum class Page(val label: String, val icon: String) {
+    TALK("车外喊话", "📢"),
+    PHRASE("快捷语音", "💬"),
+    SETTINGS("系统设置", "⚙️"),
 }
 
 @Composable
@@ -257,7 +257,7 @@ fun HollerApp() {
                 .padding(HollerSpacing.Page),
             verticalArrangement = Arrangement.spacedBy(HollerSpacing.CardGap),
         ) {
-            TopBar(stage)
+            TopBar(stage = stage, route = route)
 
             // 页面内容区：占据剩余空间
             Box(modifier = Modifier.weight(1f)) {
@@ -296,11 +296,11 @@ fun HollerApp() {
 }
 
 // ======================================================================
-// 顶栏
+// 顶栏（带车载微光质感与路由设备状态常驻）
 // ======================================================================
 
 @Composable
-private fun TopBar(stage: HollerEngine.Stage) {
+private fun TopBar(stage: HollerEngine.Stage, route: AudioRouteResolver.RouteInfo?) {
     val (dotColor, label) = when (stage) {
         HollerEngine.Stage.IDLE -> HollerTheme.colors.TextSecondary to "待命"
         HollerEngine.Stage.RECORDING -> HollerTheme.colors.Danger to "喊话中"
@@ -311,13 +311,53 @@ private fun TopBar(stage: HollerEngine.Stage) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            "Holler",
-            color = HollerTheme.colors.TextPrimary,
-            fontSize = HollerType.Title,
-            fontWeight = FontWeight.Bold,
-        )
-        // 状态点常驻顶栏：任何页面都能看到当前是否在喊话
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 车载应用标志
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(HollerShapes.Control)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(HollerTheme.colors.Accent, HollerTheme.colors.BrandElevated)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("📢", fontSize = 20.sp)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Holler",
+                        color = HollerTheme.colors.TextPrimary,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "车外喊话",
+                        color = HollerTheme.colors.Accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(HollerShapes.Control)
+                            .background(HollerTheme.colors.AccentSoft)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Text(
+                    "音频路由: ${route?.source ?: "自动侦测"} · ${route?.device?.productName ?: "默认输出"}",
+                    color = HollerTheme.colors.TextSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // 状态指示药丸
         StatusPill(color = dotColor, label = label)
     }
 }
@@ -915,31 +955,61 @@ private fun PhraseRow(
                 )
             }
         }
-        MiniAction("▶", onPlay)
+        MiniAction("播报", onPlay, primary = true)
         MiniAction("改", onEdit)
-        MiniAction(if (isLaunch) "★" else "☆", onLaunch)
-        MiniAction("×", onDelete)
+        MiniAction(if (isLaunch) "★ 常用" else "☆ 设常用", onLaunch, active = isLaunch)
+        MiniAction("删", onDelete, danger = true)
     }
 }
 
-/** 列表行内的小动作按钮（方块 + 字符，车机上易点）。 */
+/** 列表行内的小动作按钮（车机触控优化版，支持 primary / active / danger 语义）。 */
 @Composable
-private fun MiniAction(label: String, onClick: () -> Unit) {
-    // 两字以上（如「选用 / 已选」）需要更宽的触控区，单字（▶ 改 ★ ×）保持方块
+private fun MiniAction(
+    label: String,
+    onClick: () -> Unit,
+    primary: Boolean = false,
+    active: Boolean = false,
+    danger: Boolean = false,
+) {
     val wide = label.length > 1
+    val bg = when {
+        primary -> HollerTheme.colors.Accent
+        active -> HollerTheme.colors.AccentSoft
+        danger -> HollerTheme.colors.Danger.copy(alpha = 0.15f)
+        else -> HollerTheme.colors.BgBase.copy(alpha = 0.5f)
+    }
+    val fg = when {
+        primary -> Color(0xFF06231B)
+        active -> HollerTheme.colors.Accent
+        danger -> HollerTheme.colors.Danger
+        else -> HollerTheme.colors.TextPrimary
+    }
+    val border = when {
+        primary -> HollerTheme.colors.Accent
+        active -> HollerTheme.colors.Accent
+        danger -> HollerTheme.colors.Danger.copy(alpha = 0.4f)
+        else -> HollerTheme.colors.Stroke
+    }
+
     Box(
         modifier = Modifier
             .then(
-                if (wide) Modifier.width(56.dp).height(34.dp)
-                else Modifier.size(34.dp)
+                if (wide) Modifier.padding(horizontal = 2.dp).height(36.dp)
+                else Modifier.size(36.dp)
             )
             .clip(HollerShapes.Control)
-            .background(HollerTheme.colors.BgBase.copy(alpha = 0.45f))
-            .border(BorderStroke(1.dp, HollerTheme.colors.Stroke), HollerShapes.Control)
-            .pointerInput(Unit) { detectTapGestures { onClick() } },
+            .background(bg)
+            .border(BorderStroke(1.dp, border), HollerShapes.Control)
+            .pointerInput(Unit) { detectTapGestures { onClick() } }
+            .padding(horizontal = if (wide) 10.dp else 0.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = HollerTheme.colors.TextPrimary, fontSize = HollerType.Body)
+        Text(
+            label,
+            color = fg,
+            fontSize = 13.sp,
+            fontWeight = if (primary || active) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 
@@ -1583,17 +1653,17 @@ private fun DockBar(page: Page, onPage: (Page) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(68.dp)
             .clip(HollerShapes.Button)
             .background(HollerTheme.colors.Brand)
             .border(BorderStroke(1.dp, HollerTheme.colors.Stroke), HollerShapes.Button)
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Page.entries.forEach { p ->
             DockItem(
-                label = p.label,
+                page = p,
                 selected = p == page,
                 modifier = Modifier.weight(1f),
             ) { onPage(p) }
@@ -1603,27 +1673,46 @@ private fun DockBar(page: Page, onPage: (Page) -> Unit) {
 
 @Composable
 private fun DockItem(
-    label: String,
+    page: Page,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.96f,
+        label = "dockScale"
+    )
+
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .padding(vertical = 8.dp)
+            .scale(scale)
             .clip(HollerShapes.Control)
             .background(if (selected) HollerTheme.colors.AccentSoft else Color.Transparent)
+            .border(
+                BorderStroke(1.dp, if (selected) HollerTheme.colors.Accent.copy(alpha = 0.5f) else Color.Transparent),
+                HollerShapes.Control
+            )
             .pointerInput(Unit) { detectTapGestures { onClick() } },
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            label,
-            color = if (selected) HollerTheme.colors.Accent else HollerTheme.colors.TextSecondary,
-            fontSize = HollerType.Body,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            textAlign = TextAlign.Center,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                page.icon,
+                fontSize = if (selected) 20.sp else 18.sp
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                page.label,
+                color = if (selected) HollerTheme.colors.Accent else HollerTheme.colors.TextSecondary,
+                fontSize = 15.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

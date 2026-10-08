@@ -1,10 +1,105 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+
+    <!-- 1. 领克/魅族车规级圆角超椭圆底盘（深海邃蓝微光渐变，带精致内敛的高质感双层光泽） -->
     <path
-        android:fillColor="#21D4A5"
-        android:pathData="M3,9v6h4l5,4V5L7,9H3zM16.5,12c0,-1.77 -1.02,-3.29 -2.5,-4.03v8.05c1.48,-0.73 2.5,-2.25 2.5,-4.02zM14,3.23v2.06c2.89,0.86 5,3.54 5,6.71s-2.11,5.85 -5,6.71v2.06c4.01,-0.91 7,-4.49 7,-8.77s-2.99,-7.86 -7,-8.77z" />
+        android:pathData="M 64,8 C 104,8 120,24 120,64 C 120,104 104,120 64,120 C 24,120 8,104 8,64 C 8,24 24,8 64,8 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="64"
+                android:startY="8"
+                android:endX="64"
+                android:endY="120"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF112D46" />
+                <item android:offset="0.5" android:color="#FF0A1D2E" />
+                <item android:offset="1.0" android:color="#FF061320" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 2. 精致外层微光边缘描边 -->
+    <path
+        android:pathData="M 64,8 C 104,8 120,24 120,64 C 120,104 104,120 64,120 C 24,120 8,104 8,64 C 8,24 24,8 64,8 Z"
+        android:strokeWidth="1.5">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="16"
+                android:startY="16"
+                android:endX="112"
+                android:endY="112"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#6621D4A5" />
+                <item android:offset="0.5" android:color="#2221D4A5" />
+                <item android:offset="1.0" android:color="#111E3A52" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 3. 背景水波纹光晕扩散弧环 (Ripple Arc 1 & 2) -->
+    <path
+        android:pathData="M 78,32 C 96,40 106,58 102,80"
+        android:strokeColor="#3321D4A5"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 84,24 C 108,36 118,62 112,92"
+        android:strokeColor="#1821D4A5"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+
+    <!-- 4. 汽车车头与车外辐射声波象征基座 (Car outline base) -->
+    <path
+        android:pathData="M 28,94 L 100,94 M 32,84 L 96,84"
+        android:strokeColor="#2221D4A5"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+
+    <!-- 5. 核心图形：车规级高保真扩音广播喇叭 (Megaphone / Speaker) -->
+    <!-- 喇叭后腔筒与把手 -->
+    <path
+        android:pathData="M 32,54 L 46,54 L 68,38 C 71,36 74,38 74,42 L 74,86 C 74,90 71,92 68,90 L 46,74 L 32,74 C 29,74 27,72 27,69 L 27,59 C 27,56 29,54 32,54 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="27"
+                android:startY="64"
+                android:endX="74"
+                android:endY="64"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF00A985" />
+                <item android:offset="1.0" android:color="#FF21D4A5" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 6. 声波脉冲矩阵（3道向车外扩散的动感能量弧） -->
+    <!-- 内弧 (近场高能量) -->
+    <path
+        android:pathData="M 82,53 C 86,57 88,61 88,64 C 88,67 86,71 82,75"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- 中弧 (中场扩散波) -->
+    <path
+        android:pathData="M 91,45 C 98,51 101,58 101,64 C 101,70 98,77 91,83"
+        android:strokeColor="#FF21D4A5"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round" />
+
+    <!-- 外弧 (车外远程穿透波) -->
+    <path
+        android:pathData="M 100,37 C 110,46 114,55 114,64 C 114,73 110,82 100,91"
+        android:strokeColor="#9921D4A5"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round" />
+
+    <!-- 7. 声波发声核心高光点 -->
+    <path
+        android:pathData="M 52,60 A 4,4 0 1,1 52,68 A 4,4 0 1,1 52,60"
+        android:fillColor="#FFFFFFFF" />
 </vector>
