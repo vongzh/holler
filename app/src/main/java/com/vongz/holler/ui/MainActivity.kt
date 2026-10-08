@@ -349,8 +349,8 @@ private fun TalkPage(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(HollerSpacing.CardGap),
     ) {
-        // --- 主卡片：按住说话 ---
-        TalkCard(
+        // --- 主体视觉：超大水波纹声波喊话按钮（对标 Hey! 主交互）---
+        TalkHeroButton(
             stage = stage,
             level = level,
             elapsed = elapsed,
@@ -386,67 +386,134 @@ private fun TalkPage(
             },
         )
 
-        // --- 变声效果（对齐 Hey! 的 5 种）---
-        HollerCard(title = "变声效果", subtitle = effect.label) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                VoiceEffect.entries.forEach { e ->
-                    HollerChip(
-                        label = e.label,
-                        selected = e == effect,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        effect = e
-                        store.voiceEffect = e
-                        engine.setVoiceEffect(e)
-                        onConfigChanged()
-                        onHint(e.desc)
-                    }
-                }
-            }
-        }
-
-        // --- 增益 / AGC ---
-        HollerCard(title = "音量与增益") {
-            HollerSlider(
-                value = gain,
-                onValueChange = {
-                    gain = it
-                    store.volumeGain = it
-                    engine.voiceBridge.gain = it
-                },
-                range = 0.2f..2.0f,
-                valueLabel = "${(gain * 100).toInt()}%",
-            )
-            Spacer(Modifier.height(8.dp))
+        // --- 底部精炼声音调控（紧凑横栏，绝不喧宾夺主）---
+        HollerCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column {
-                    Text("自动增益 (AGC)", color = HollerTheme.colors.TextPrimary, fontSize = HollerType.Body)
-                    Text(
-                        "对齐 Hey! 参数 target=0.45 attack=0.15",
-                        color = HollerTheme.colors.TextSecondary,
-                        fontSize = HollerType.Caption,
+                // 变声胶囊栏
+                Column(modifier = Modifier.weight(1.3f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "变声效果",
+                            color = HollerTheme.colors.TextSecondary,
+                            fontSize = HollerType.Caption,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            effect.label,
+                            color = HollerTheme.colors.Accent,
+                            fontSize = HollerType.Caption,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        VoiceEffect.entries.forEach { e ->
+                            val selected = e == effect
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(HollerShapes.Control)
+                                    .background(if (selected) HollerTheme.colors.AccentSoft else HollerTheme.colors.BgBase.copy(alpha = 0.5f))
+                                    .border(
+                                        BorderStroke(1.dp, if (selected) HollerTheme.colors.Accent else HollerTheme.colors.Stroke),
+                                        HollerShapes.Control
+                                    )
+                                    .clickable {
+                                        effect = e
+                                        store.voiceEffect = e
+                                        engine.setVoiceEffect(e)
+                                        onConfigChanged()
+                                        onHint(e.desc)
+                                    }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    e.label,
+                                    color = if (selected) HollerTheme.colors.Accent else HollerTheme.colors.TextSecondary,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 分割竖线
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(48.dp)
+                        .background(HollerTheme.colors.Stroke)
+                )
+
+                // 增益与 AGC 紧凑控制
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "车外增益 ${(gain * 100).toInt()}%",
+                            color = HollerTheme.colors.TextSecondary,
+                            fontSize = HollerType.Caption
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "AGC",
+                                color = if (agc) HollerTheme.colors.Accent else HollerTheme.colors.TextSecondary,
+                                fontSize = HollerType.Caption,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            HollerSwitch(
+                                checked = agc,
+                                onCheckedChange = {
+                                    agc = it
+                                    store.agcEnabled = it
+                                    engine.voiceBridge.agcEnabled = it
+                                },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    HollerSlider(
+                        value = gain,
+                        onValueChange = {
+                            gain = it
+                            store.volumeGain = it
+                            engine.voiceBridge.gain = it
+                        },
+                        range = 0.2f..2.0f,
+                        valueLabel = ""
                     )
                 }
-                HollerSwitch(
-                    checked = agc,
-                    onCheckedChange = {
-                        agc = it
-                        store.agcEnabled = it
-                        engine.voiceBridge.agcEnabled = it
-                    },
-                )
             }
         }
     }
 }
 
-/** 主卡片：按住喊话。按下缩放 + 描边变色，全部用 Flyme Auto 的克制动效。 */
+/**
+ * 主体：巨型声波水波纹喊话控制台（对标 Hey! 经典车机主视觉）。
+ * 居中超大触控圆形按钮，外围层层扩散水波纹与脉冲能量光晕。
+ */
 @Composable
-private fun TalkCard(
+private fun TalkHeroButton(
     stage: HollerEngine.Stage,
     level: Int,
     elapsed: Float,
@@ -459,79 +526,144 @@ private fun TalkCard(
     val active = stage == HollerEngine.Stage.RECORDING
     val playing = stage == HollerEngine.Stage.PLAYING
 
-    val scale by animateFloatAsState(
-        targetValue = if (active) 0.985f else 1f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = 700f),
-        label = "cardScale",
+    val buttonScale by animateFloatAsState(
+        targetValue = if (active) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
+        label = "heroScale",
     )
-    val borderColor by animateColorAsState(
+
+    val coreBgColor by animateColorAsState(
         targetValue = when {
             active -> HollerTheme.colors.Danger
             playing -> HollerTheme.colors.Accent
+            else -> HollerTheme.colors.BrandElevated
+        },
+        label = "heroBgColor"
+    )
+
+    val coreBorderColor by animateColorAsState(
+        targetValue = when {
+            active -> Color.White.copy(alpha = 0.85f)
+            playing -> HollerTheme.colors.Accent
             else -> HollerTheme.colors.Stroke
         },
-        label = "border",
+        label = "heroBorder"
     )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .scale(scale)
             .clip(HollerShapes.Card)
             .background(
                 Brush.verticalGradient(
-                    listOf(HollerTheme.colors.BrandElevated, HollerTheme.colors.Brand)
+                    listOf(
+                        HollerTheme.colors.BrandElevated.copy(alpha = 0.4f),
+                        HollerTheme.colors.Brand.copy(alpha = 0.8f)
+                    )
                 )
             )
-            .border(BorderStroke(1.dp, borderColor), HollerShapes.Card)
-            .pointerInput(stage) {
-                detectTapGestures(
-                    onPress = {
-                        onPress()
-                        val released = tryAwaitRelease()
-                        if (released) onRelease() else onCancel()
-                    }
-                )
-            },
+            .border(BorderStroke(1.dp, HollerTheme.colors.Stroke), HollerShapes.Card),
         contentAlignment = Alignment.Center,
     ) {
+        // 1. 全域水波纹动态扩散层（随着音量和按压状态剧烈涌动）
+        AudioGlowRippleView(
+            level = level,
+            active = active,
+            playing = playing,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 2. 核心大按钮区域
         Column(
-            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(240.dp)
+                    .scale(buttonScale)
+                    .pointerInput(stage) {
+                        detectTapGestures(
+                            onPress = {
+                                onPress()
+                                val released = tryAwaitRelease()
+                                if (released) onRelease() else onCancel()
+                            }
+                        )
+                    }
             ) {
-            // 声波与倒计时环叠放：环在外圈指示剩余时间，波在中心指示音量
-            Box(contentAlignment = Alignment.Center) {
+                // 外圈倒计时进度环
                 CountdownRing(
                     elapsedSeconds = elapsed,
                     maxSeconds = HollerEngine.MAX_SECONDS,
                     active = active,
-                    modifier = Modifier.size(212.dp),
+                    modifier = Modifier.size(236.dp),
                 )
-                WaveformView(
-                    level = level,
-                    active = active,
-                    playing = playing,
-                    modifier = Modifier.size(148.dp),
-                )
+
+                // 核心超大圆形实体触控按钮
+                Box(
+                    modifier = Modifier
+                        .size(176.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    coreBgColor,
+                                    if (active) HollerTheme.colors.Danger.copy(alpha = 0.75f)
+                                    else if (playing) HollerTheme.colors.Accent.copy(alpha = 0.8f)
+                                    else HollerTheme.colors.Brand
+                                )
+                            )
+                        )
+                        .border(
+                            BorderStroke(
+                                if (active) 3.5.dp else 2.dp,
+                                coreBorderColor
+                            ),
+                            androidx.compose.foundation.shape.CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // 图标：麦克风/声波状态
+                        Text(
+                            when (stage) {
+                                HollerEngine.Stage.IDLE -> "🎙"
+                                HollerEngine.Stage.RECORDING -> "📢"
+                                HollerEngine.Stage.PLAYING -> "🔊"
+                            },
+                            fontSize = 38.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            when (stage) {
+                                HollerEngine.Stage.IDLE -> "按住说话"
+                                HollerEngine.Stage.RECORDING -> "松开发送"
+                                HollerEngine.Stage.PLAYING -> "正在播报"
+                            },
+                            color = if (active || playing) Color.White else HollerTheme.colors.TextPrimary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
-            Spacer(Modifier.height(20.dp))
-            Text(
-                when (stage) {
-                    HollerEngine.Stage.IDLE -> "按住喊话"
-                    HollerEngine.Stage.RECORDING -> "松开发送"
-                    HollerEngine.Stage.PLAYING -> "播报中"
-                },
-                color = HollerTheme.colors.TextPrimary,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(Modifier.height(10.dp))
+
+            Spacer(Modifier.height(14.dp))
+
+            // 状态提示文字
             Text(
                 hint,
-                color = HollerTheme.colors.TextSecondary,
+                color = if (active) HollerTheme.colors.Danger else HollerTheme.colors.TextSecondary,
                 fontSize = HollerType.Body,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
     }
