@@ -1,0 +1,188 @@
+name: Android Build & Release
+
+# 触发方式：
+#   1. 推送 v* 标签（如 v0.3.1）→ 自动构建 + 发布 Release
+#   2. 手动触发（Actions 页 Run workflow）→ 构建并上传 artifact，勾选 publish 才发 Release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布用的标签名（留空则只构建、不发布）'
+        required: false
+        default: ''
+      publish:
+        description: '构建后发布到 Release'
+        type: boolean
+        default: false
+
+# softprops/action-gh-release 创建 Release 需要写权限
+permissions:
+  contents: write
+
+# 同一分支 / 标签的重复触发自动取消，避免并发抢锁
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 本机 JDK 为 jbr-21，AGP 9.4.1 要求 JDK 17+，统一用 21
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # 只预装 platform-tools，其余由 AGP 按 compileSdk 自动解析下载。
+          # 刻意不写死 platforms/android-XX 版本号：本机实测 AGP 自动拉取的
+          # platform 目录名是 `android-37.0`（不是 android-37），而 build-tools 是
+          # 36.0.0 —— 写死任何一个都可能踩空。AGP 自带 SDK 下载器，联网时能自行补齐。
+          packages: 'platform-tools'
+
+      # gradle/actions/setup-gradle 自带 wrapper 校验 + 依赖缓存，比 actions/cache 手写更省心
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # 先算出版本号，并把「标签 vs versionName」的一致性卡在构建之前（失败要快）
+      - name: Resolve version
+        id: ver
+        run: |
+          set -e
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+          VCODE=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts | head -1)
+          [ -n "$VERSION" ] || { echo "❌ 未能从 app/build.gradle.kts 解析 versionName"; exit 1; }
+          [ -n "$VCODE" ]   || { echo "❌ 未能从 app/build.gradle.kts 解析 versionCode"; exit 1; }
+
+          # 发布用的 ref：标签触发取标签名，手动触发取输入的 tag（可能为空 = 只构建）
+          REF="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          if [ -n "$REF" ]; then
+            # 标签的版本段必须与 versionName 一致，否则会出现「tag 是 v0.4.0、
+            # 但 APK 里其实是 0.3.1」这种查不出来的错版
+            TAGVER="${REF#v}"
+            if [ "$TAGVER" != "$VERSION" ]; then
+              echo "❌ 标签版本($TAGVER) 与 versionName($VERSION) 不一致"
+              echo "   请先改 app/build.gradle.kts 的 versionName/versionCode，再打对应标签"
+              exit 1
+            fi
+          fi
+
+          # 文件名始终带版本号；手动构建再补 commit 短 SHA 便于区分
+          if [ -n "$REF" ]; then
+            NAME="Holler-${VERSION}.apk"
+          else
+            NAME="Holler-${VERSION}-${GITHUB_SHA::7}.apk"
+          fi
+
+          {
+            echo "VERSION=$VERSION"
+            echo "VCODE=$VCODE"
+            echo "REF=$REF"
+            echo "APK_NAME=$NAME"
+          } >> "$GITHUB_ENV"
+          {
+            echo "version=$VERSION"
+            echo "vcode=$VCODE"
+            echo "ref=$REF"
+            echo "apk_name=$NAME"
+          } >> "$GITHUB_OUTPUT"
+          echo "版本 name=$VERSION code=$VCODE ref=${REF:-（仅构建）} 产物名=$NAME"
+
+      # 有签名 secrets 就还原 keystore 走正式签名
+      - name: Restore keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/holler-release.jks"
+            echo "SIGNING_READY=true" >> "$GITHUB_ENV"
+            echo "✅ 已还原签名密钥库"
+          else
+            echo "SIGNING_READY=false" >> "$GITHUB_ENV"
+            echo "⚠️ 未配置签名 secrets（KEYSTORE_BASE64 为空），本次产出未签名 APK"
+          fi
+
+      # 未签名 APK 无法安装（INSTALL_PARSE_FAILED_NO_CERTIFICATES），
+      # 因此「要发 Release」时必须先有签名，否则直接拦下，不发一个装不上的包出去
+      - name: Require signing for publish
+        if: startsWith(github.ref, 'refs/tags/v') || (inputs.publish && inputs.tag != '')
+        run: |
+          if [ "$SIGNING_READY" != "true" ]; then
+            echo "❌ 本次要发布 Release，但没有签名 secrets，产出的未签名 APK 无法安装。"
+            echo "   请在仓库 Settings → Secrets and variables → Actions 配置："
+            echo "   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD"
+            exit 1
+          fi
+
+      - name: Build release APK
+        env:
+          HOLLER_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          HOLLER_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          HOLLER_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # 本仓库在 Windows 上提交，gradlew 的执行位丢失（git 索引里是 100644），
+          # Linux runner 上必须补回，否则 ./gradlew 直接 Permission denied
+          chmod +x ./gradlew
+          if [ "$SIGNING_READY" = "true" ]; then
+            export HOLLER_KEYSTORE_PATH="$GITHUB_WORKSPACE/holler-release.jks"
+          fi
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Collect & verify APK
+        run: |
+          set -e
+          mkdir -p dist
+
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          [ -n "$APK" ] || { echo "❌ 未找到 APK 产物"; exit 1; }
+          cp "$APK" "dist/$APK_NAME"
+
+          # 项目约定：名称/包名类改动后必须校验 APK 内的包名与启动 Activity
+          BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          AAPT="$ANDROID_HOME/build-tools/$BT/aapt2"
+          BADGING=$("$AAPT" dump badging "dist/$APK_NAME")
+          echo "$BADGING" | head -4
+          echo "$BADGING" | grep -q "package: name='com.vongzh.holler'" \
+            || { echo "❌ 包名不是 com.vongzh.holler"; exit 1; }
+          echo "$BADGING" | grep -q "launchable-activity: name='com.vongzh.holler.ui.MainActivity'" \
+            || { echo "❌ 启动 Activity 不符"; exit 1; }
+          # 曲线验证：APK 内嵌的 versionName 要和我们算出来的一致
+          echo "$BADGING" | grep -q "versionName='$VERSION'" \
+            || { echo "❌ APK 内 versionName 与 $VERSION 不符"; exit 1; }
+
+          ls -lh dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: holler-apk-${{ steps.ver.outputs.version }}
+          path: dist/*.apk
+          retention-days: 30
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (inputs.publish && inputs.tag != '')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
+          tag_name: ${{ steps.ver.outputs.ref }}
+          name: ${{ steps.ver.outputs.ref }}
+          body: |
+            Holler 车机喊话应用 ${{ steps.ver.outputs.ref }}
+
+            - 版本：`${{ steps.ver.outputs.version }}`（versionCode `${{ steps.ver.outputs.vcode }}`）
+            - 产物：`${{ steps.ver.outputs.apk_name }}`
+            - 签名：已用仓库 Secrets 中的正式密钥库签名
+
+            安装：`adb install -r ${{ steps.ver.outputs.apk_name }}`
+            要求：Android 11+（API 30）
