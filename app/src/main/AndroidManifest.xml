@@ -25,7 +25,7 @@
       系统日志：对齐 Hey! 的 LogcatTriggerService。
       READ_LOGS 是 signature|privileged 级权限，普通安装申请不生效，
       必须由用户执行一次：
-        adb shell pm grant com.vongz.holler android.permission.READ_LOGS
+        adb shell pm grant com.vongzh.holler android.permission.READ_LOGS
       未授予时服务自动降级为「仅读本应用日志」，不会崩溃。
     -->
     <uses-permission
@@ -46,7 +46,8 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Holler"
@@ -102,10 +103,10 @@
             android:name=".audio.HollerCommandReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.vongz.holler.action.START_TALK" />
-                <action android:name="com.vongz.holler.action.STOP_TALK" />
-                <action android:name="com.vongz.holler.action.TOGGLE_TALK" />
-                <action android:name="com.vongz.holler.action.PLAY_PHRASE" />
+                <action android:name="com.vongzh.holler.action.START_TALK" />
+                <action android:name="com.vongzh.holler.action.STOP_TALK" />
+                <action android:name="com.vongzh.holler.action.TOGGLE_TALK" />
+                <action android:name="com.vongzh.holler.action.PLAY_PHRASE" />
             </intent-filter>
         </receiver>
 

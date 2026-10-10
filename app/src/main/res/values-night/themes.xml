@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Holler" parent="android:Theme.Material.NoActionBar">
+        <!-- 与 Compose 侧 DarkHollerColors.BgBase (#0B1117) 对齐，避免夜间座舱冷启动白闪 -->
+        <item name="android:windowBackground">#FF0B1117</item>
+        <item name="android:statusBarColor">#FF0B1117</item>
+        <item name="android:navigationBarColor">#FF0B1117</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

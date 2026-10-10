@@ -1,7 +1,7 @@
 # Holler vs Hey! —— 设置 / 界面 / 配置差异清单
 
 > 参照对象：Hey! v1.2.5（`docs/HEY_CAPABILITY.md` 逆向实测）
-> 对照对象：Holler v0.3.1（当前代码，`app/src/main/java/com/vongz/holler/`）
+> 对照对象：Holler v0.3.1（当前代码，`app/src/main/java/com/vongzh/holler/`）
 > 目的：把「还差什么」落成可勾选的清单，而不是凭印象。
 >
 > **v0.3.1 更新**：缺口 9 项中已补 4 项（见 §6）。当前覆盖 **19 / 24（79.2%）**。
@@ -92,7 +92,7 @@ Hey! 的两道护城河之一。Holler 的 `audio/shell/DeviceProbe.kt` **目前
 
 **补法**（复杂度高，建议车机实测后再决定）：
 - 写一个含 `main()` 的 Java 类，打包进 APK 的 dex
-- 运行时 `Runtime.exec("app_process /system/bin com.vongz.holler.audio.shell.DeviceProbe")`
+- 运行时 `Runtime.exec("app_process /system/bin com.vongzh.holler.audio.shell.DeviceProbe")`
 - 通过 stdout 管道读回结果
 - **必须独立进程**——Hey! 的日志里有 `⚠ 子进程超时 (卡在 usage` 和 `→ ✗ NATIVE CRASH (进程被杀)`，说明遍历会崩，放主进程会拖垮整个 App
 

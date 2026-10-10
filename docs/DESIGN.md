@@ -1,5 +1,9 @@
 # Holler 设计规范（参考 Flyme Auto）
 
+> ⚠️ **色彩令牌以代码为唯一事实来源**：[`app/src/main/java/com/vongzh/holler/ui/theme/Theme.kt`](../app/src/main/java/com/vongzh/holler/ui/theme/Theme.kt)。
+> 本文档下方的色值表是 2026-10 之前的早期草案，**已过期**（例如 `bg_base` 现为 `#0B1117` 深色 / `#F2F5F8` 浅色，`accent` 现为 `#1AE5A3` 深色 / `#00B578` 浅色），
+> 保留仅为记录设计推演过程。布局骨架图同样早于「单屏 + 底部 DOCK」的现状，最新版式见 README 与 `docs/AUDIT-2026-10-10.md`。
+
 ## 设计语言来源
 
 Flyme Auto（领克 08 车机）的核心视觉特征：

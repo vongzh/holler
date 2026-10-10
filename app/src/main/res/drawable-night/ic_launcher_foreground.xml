@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. 底座微光大圆 (Flyme Auto 车规级大卡片层次底座) -->
+    <path
+        android:pathData="M 54,22 C 71.67,22 86,36.33 86,54 C 86,71.67 71.67,86 54,86 C 36.33,86 22,71.67 22,54 C 22,36.33 36.33,22 54,22 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="22"
+                android:endX="54"
+                android:endY="86"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#2400B578" />
+                <item android:offset="1.0" android:color="#0800B578" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 2. 左侧车身流线 (极光青微光，夜间深邃灵动) -->
+    <path
+        android:pathData="M 23,65 C 28,62 31,56 31,48 C 31,43 27,37 24,35"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="23"
+                android:startY="35"
+                android:endX="31"
+                android:endY="65"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#301AE5A3" />
+                <item android:offset="0.5" android:color="#BF1AE5A3" />
+                <item android:offset="1.0" android:color="#2000B578" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 3. 核心：麦克风头部拾音网罩 -->
+    <path
+        android:pathData="M 36,46.5 C 36,42.4 39.4,39 43.5,39 C 47.6,39 51,42.4 51,46.5 L 51,51.5 L 36,51.5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="43.5"
+                android:startY="38"
+                android:endX="43.5"
+                android:endY="52"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF2BE8A8" />
+                <item android:offset="1.0" android:color="#FF00A86B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 4. 麦克风 2 道标志性声学横线 (纯白高光，通透立体) -->
+    <path
+        android:pathData="M 39.5,44 L 47.5,44"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeWidth="1.3"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M 38.5,48 L 48.5,48"
+        android:strokeColor="#E6FFFFFF"
+        android:strokeWidth="1.3"
+        android:strokeLineCap="round" />
+
+    <!-- 5. 极细金属分界光隙 -->
+    <path
+        android:pathData="M 35.5,52.2 L 51.5,52.2"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.3"
+        android:strokeLineCap="round" />
+
+    <!-- 6. 麦克风下半部手柄 -->
+    <path
+        android:pathData="M 36.5,53 L 50.5,53 L 50.5,62 C 50.5,64.8 47.4,67 43.5,67 C 39.6,67 36.5,64.8 36.5,62 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="43.5"
+                android:startY="53"
+                android:endX="43.5"
+                android:endY="67"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF008052" />
+                <item android:offset="1.0" android:color="#FF004D31" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 7. 破壁声浪 1：内层纯白至极光青高亮光弧 -->
+    <path
+        android:pathData="M 58,45 C 64.5,47.5 68,52.5 68,57.5 C 68,62.5 64.5,67 58,69.5"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="58"
+                android:startY="45"
+                android:endX="68"
+                android:endY="57.5"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFFFF" />
+                <item android:offset="1.0" android:color="#FF00B578" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 8. 破壁声浪 2：外层极光青渐变扩散光弧 -->
+    <path
+        android:pathData="M 66,39 C 75.5,43 80,50 80,57.5 C 80,65 75.5,72 66,76"
+        android:strokeWidth="3.0"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="66"
+                android:startY="39"
+                android:endX="80"
+                android:endY="57.5"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#CC1AE5A3" />
+                <item android:offset="1.0" android:color="#2000B578" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 9. 灵动能量星点 -->
+    <path
+        android:pathData="M 83,34 A 1.6,1.6 0 1,1 83,33.9 Z"
+        android:fillColor="#FFFFFFFF" />
+
+</vector>

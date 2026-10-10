@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Holler 主界面视觉优化评审</title>
+<style>
+  :root{
+    --light-bg:#F2F5F8; --light-brand:#FFFFFF; --light-elev:#E5EBF2; --light-accent:#00B578;
+    --light-danger:#FF4D4F; --light-t1:#161C24; --light-t2:#6B7888; --light-stroke:#D6DFEB;
+    --dark-bg:#0B1117; --dark-brand:#131D28; --dark-elev:#1D2B3A; --dark-accent:#1AE5A3;
+    --dark-danger:#FF5252; --dark-t1:#F2F6FA; --dark-t2:#8B9DAE; --dark-stroke:#233446;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#EDF1F5;font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#1B2531}
+  .wrap{max-width:1580px;margin:0 auto;padding:34px 28px 70px}
+  .doc-h{border-bottom:2px solid #D8E1EA;padding-bottom:16px;margin-bottom:6px}
+  .doc-h h1{font-size:25px;margin:0 0 8px}
+  .doc-h p{margin:0;color:#5D6C7C;font-size:13.5px;line-height:1.7}
+  .sec{margin-top:38px}
+  .sec-h{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .sec-h .no{font-size:11px;font-weight:700;color:#fff;background:#33414F;border-radius:5px;padding:3px 7px;letter-spacing:.5px}
+  .sec-h h2{font-size:17.5px;margin:0}
+  .sec-h .tag{font-size:10.5px;font-weight:700;border-radius:4px;padding:2.5px 7px}
+  .t-p0{background:#FFE3E3;color:#C02626}.t-p1{background:#FFF0D6;color:#9A6205}.t-p2{background:#E4EFFB;color:#25609B}
+  .note{font-size:12.5px;color:#5D6C7C;line-height:1.75;margin:8px 0 18px;max-width:960px}
+  .note b{color:#1B2531}
+  .panel{background:#fff;border:1px solid #DFE7EF;border-radius:14px;padding:20px 20px 16px}
+  .grid{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .cap{font-size:11.5px;color:#5D6C7C;text-align:center;margin-top:9px;line-height:1.6}
+  .cap b{color:#1B2531;display:block;margin-bottom:2px;font-size:12px}
+  .cell{text-align:center}
+
+  /* ---------- 模拟车机屏 ---------- */
+  .screen{position:relative;width:720px;height:480px;overflow:hidden;border:1px solid #CBD6E1;border-radius:10px;
+          box-shadow:0 8px 24px rgba(28,44,64,.16)}
+  .screen.small{width:540px;height:360px}
+  .screen.light{background:var(--light-bg);--bg:var(--light-bg);--brand:var(--light-brand);--elev:var(--light-elev);
+    --accent:var(--light-accent);--danger:var(--light-danger);--t1:var(--light-t1);--t2:var(--light-t2);--stroke:var(--light-stroke)}
+  .screen.dark{background:var(--dark-bg);--bg:var(--dark-bg);--brand:var(--dark-brand);--elev:var(--dark-elev);
+    --accent:var(--dark-accent);--danger:var(--dark-danger);--t1:var(--dark-t1);--t2:var(--dark-t2);--stroke:var(--dark-stroke)}
+
+  .toppill{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;
+    background:var(--brand);border:1px solid var(--stroke);border-radius:16px;padding:6px 14px;
+    font-size:10.5px;color:var(--t2);white-space:nowrap}
+  .toppill.big{font-size:11.5px;color:var(--t1);padding:7px 15px}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none}
+  .dot.warn{background:var(--danger)}
+  .devpill{position:absolute;right:16px;top:14px;display:flex;align-items:center;gap:5px;background:var(--elev);
+    border:1px solid var(--stroke);border-radius:16px;padding:6px 11px;font-size:9.5px;color:var(--t2)}
+  .devpill svg{width:11px;height:11px;fill:var(--accent)}
+
+  .mainbtn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:129px;height:129px;border-radius:50%;
+    background:linear-gradient(180deg,var(--elev),var(--brand));border:1px solid var(--stroke);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    box-shadow:0 6px 18px rgba(28,44,64,.10)}
+  .screen.dark .mainbtn{box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  .mainbtn.plain{border-color:transparent;box-shadow:0 4px 14px rgba(28,44,64,.08)}
+  .mainbtn.bordered{border:1px solid var(--stroke)}
+  .mainbtn.deepen{background:linear-gradient(180deg,#FFFFFF,#E2EAF1);border:1px solid #C9D5E1}
+  .mainbtn svg.mic{width:53px;height:53px;fill:var(--accent)}
+  .mainbtn .hold{font-size:9.5px;color:var(--t2);letter-spacing:.6px;margin-top:1px}
+  .mainbtn .glow{position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle,rgba(0,181,120,.16),transparent 62%)}
+  .screen.dark .mainbtn .glow{background:radial-gradient(circle,rgba(26,229,163,.18),transparent 62%)}
+  .mainbtn.rec{background:linear-gradient(180deg,rgba(255,77,79,.16),rgba(255,77,79,.07));
+    border:1px solid rgba(255,77,79,.42);overflow:hidden}
+  .mainbtn.rec .fillup{position:absolute;left:0;right:0;bottom:0;background:rgba(255,77,79,.72)}
+  .mainbtn.rec .inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .bars{display:flex;align-items:center;gap:2.5px;height:34px}
+  .bars i{display:block;width:3.5px;border-radius:2px;background:var(--danger)}
+  .bars.play i{background:var(--accent)}
+  .rec-hint{font-size:9px;color:var(--danger);font-weight:700;letter-spacing:.4px}
+  .rec-sub{font-size:8.5px;color:var(--t2);display:flex;align-items:center;gap:3px}
+  .chev{display:inline-block;width:0;height:0;border-left:3.5px solid transparent;border-right:3.5px solid transparent;border-bottom:5px solid currentColor}
+  .cancelx{width:40px;height:40px;fill:#fff}
+
+  .dock{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;
+    background:var(--brand);border:1px solid var(--stroke);border-radius:22px;padding:4px}
+  .dockitem{display:flex;align-items:center;gap:4px;padding:8px 13px;border-radius:17px;font-size:10.5px;
+    color:var(--t1);font-weight:600;position:relative;white-space:nowrap}
+  .dockitem svg{width:12.5px;height:12.5px;fill:var(--t1)}
+  .dockitem.sheet{background:var(--elev)}
+  .dockitem.sheet svg,.dockitem.sheet{color:var(--t1);fill:var(--t1)}
+  .dockitem.effect{color:var(--accent)}
+  .dockitem.effect svg{fill:var(--accent)}
+  .badge{position:absolute;right:5px;top:4px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+
+  .gear{position:absolute;left:16px;bottom:25px;width:41px;height:41px;border-radius:50%;background:var(--brand);
+    border:1px solid var(--stroke);display:flex;align-items:center;justify-content:center}
+  .gear svg{width:21px;height:21px;fill:var(--t1)}
+  .gear.misaligned{bottom:20px}
+  .baseline{position:absolute;left:24px;right:24px;bottom:45px;border-top:1px dashed #FF6B8A;opacity:.85}
+  .baseline span{position:absolute;right:0;top:-14px;font-size:8.5px;color:#E8456E}
+
+  /* ---------- 细节放大 ---------- */
+  .zoom-btn{width:200px;height:200px;border-radius:50%;position:relative;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3px;overflow:hidden}
+  .zoom-btn.light{background:var(--light-bg)}
+  .zoom-btn.dark{background:var(--dark-bg)}
+  .zoom-btn .disc{position:absolute;inset:0;border-radius:50%;background:linear-gradient(180deg,var(--elev),var(--brand));
+    border:1px solid var(--stroke);box-shadow:0 6px 18px rgba(28,44,64,.10)}
+  .zoom-btn .body{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:5px}
+  .zoom-btn svg.mic{width:76px;height:76px}
+  .zoom-btn .hold{font-size:13px;letter-spacing:1px}
+  .zoom-btn .hint{font-size:12px;font-weight:700}
+  .zoom-btn .sub{font-size:11px;display:flex;align-items:center;gap:5px}
+  .zoom-btn .fillup{position:absolute;left:0;right:0;bottom:0;z-index:1}
+  .lg{--bg:var(--light-bg);--brand:var(--light-brand);--elev:var(--light-elev);--accent:var(--light-accent);
+      --danger:var(--light-danger);--t1:var(--light-t1);--t2:var(--light-t2);--stroke:var(--light-stroke);color:var(--t1)}
+  .dk{--bg:var(--dark-bg);--brand:var(--dark-brand);--elev:var(--dark-elev);--accent:var(--dark-accent);
+      --danger:var(--dark-danger);--t1:var(--dark-t1);--t2:var(--dark-t2);--stroke:var(--dark-stroke);color:var(--t1)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:16px}
+  th,td{border:1px solid #DDE6EF;padding:9px 11px;text-align:left;vertical-align:top;line-height:1.6}
+  th{background:#F3F7FB;font-size:12px;color:#33414F;font-weight:700}
+  code{background:#EEF3F8;border-radius:4px;padding:1px 5px;font-family:Consolas,monospace;font-size:11.5px}
+  .kpi{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 2px}
+  .kpi div{background:#F5F9FC;border:1px solid #DFE8F1;border-radius:9px;padding:9px 12px;font-size:11.5px;color:#4E5D6D;line-height:1.6}
+  .kpi b{display:block;color:#1B2531;font-size:15px;margin-bottom:2px}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:middle;margin-right:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="doc-h">
+    <h1>Holler 主界面视觉优化评审</h1>
+    <p>依据实际代码（<code>MainActivity.kt</code> / <code>Theme.kt</code> / <code>Controls.kt</code>）+ 模拟器实拍截图。<br>
+    所有色值取运行时令牌：浅色 <span class="swatch" style="background:#00B578"></span>#00B578 · <span class="swatch" style="background:#F2F5F8"></span>#F2F5F8 ·
+    <span class="swatch" style="background:#FFFFFF;border:1px solid #D6DFEB"></span>#FFFFFF；深色 <span class="swatch" style="background:#1AE5A3"></span>#1AE5A3 ·
+    <span class="swatch" style="background:#0B1117"></span>#0B1117。<b>本稿只改视觉与文案，不动交互逻辑与状态机。</b></p>
+  </div>
+
+  <!-- ================= 00 全景对照 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">00</span><h2>全景对照 · 浅色主题</h2><span class="tag t-p0">总览</span></div>
+    <p class="note">左 = 现状（截图复刻）。右 = 应用全部建议后。差异集中四处：<b>①按钮内「按住 喊话」</b>、<b>②底栏选中态拆成「面板亮 / 效果点」</b>、
+    <b>③齿轮与底栏中心线对齐</b>、<b>④顶部胶囊字号与颜色</b>。整体观感不变——这轮是打磨，不是改版。</p>
+    <div class="panel"><div class="grid">
+
+      <div class="cell"><div class="screen light">
+        <div class="toppill"><span class="dot"></span>车载喊话系统已就绪</div>
+        <div class="devpill"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>Car on x86_64 emulator</div>
+        <div class="mainbtn plain"><div class="glow"></div><svg class="mic" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg></div>
+        <div class="gear misaligned"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+        <div class="dock">
+          <div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>快捷语音</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+        </div>
+      </div><div class="cap"><b>现状</b>按钮无按住暗示 · 大叔与快捷语音同图标 · 齿轮低 6dp</div></div>
+
+      <div class="cell"><div class="screen light">
+        <div class="toppill big"><span class="dot"></span>车载喊话系统已就绪</div>
+        <div class="devpill"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>Car on x86_64 emulator</div>
+        <div class="mainbtn bordered"><div class="glow"></div><svg class="mic" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold">按住 喊话</div></div>
+        <div class="gear"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+        <div class="dock">
+          <div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔<span class="badge"></span></div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+        </div>
+      </div><div class="cap"><b>优化后</b>按住暗示 · 图标去重 · 效果点标记 · 基线对齐</div></div>
+
+    </div></div>
+  </div>
+
+  <!-- ================= 01 深色对照 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">01</span><h2>全景对照 · 深色主题</h2><span class="tag t-p1">一致性</span></div>
+    <p class="note">同一套改动在深色下的表现：<b>按钮描边改用 <code>Stroke #233446</code></b>（深色下现状本就成立，保持不变），
+    「按住 喊话」用 <code>TextSecondary #8B9DAE</code>，效果点用 <code>Accent #1AE5A3</code>。浅色/深色各只差令牌，结构完全复用。</p>
+    <div class="panel"><div class="grid">
+      <div class="cell"><div class="screen dark">
+        <div class="toppill"><span class="dot"></span>车载喊话系统已就绪</div>
+        <div class="devpill"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车载音频通路</div>
+        <div class="mainbtn"><svg class="mic" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold">按住 喊话</div></div>
+        <div class="gear"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+        <div class="dock">
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>原声</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+        </div>
+      </div><div class="cap"><b>深色 · 待机</b>原声态 = Tune 图标，无效果点</div></div>
+
+      <div class="cell"><div class="screen dark">
+        <div class="toppill"><span class="dot warn"></span>正在喊话…松开 发送</div>
+        <div class="devpill"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车载音频通路</div>
+        <div class="mainbtn rec"><div class="fillup" style="height:0"></div><div class="inner">
+          <div class="bars"><i style="height:14px"></i><i style="height:26px"></i><i style="height:34px"></i><i style="height:22px"></i><i style="height:30px"></i><i style="height:12px"></i></div>
+          <div class="rec-hint">松开 发送</div>
+          <div class="rec-sub"><span class="chev"></span>上滑取消</div>
+        </div></div>
+        <div class="gear"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+        <div class="dock">
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>原声</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+        </div>
+      </div><div class="cap"><b>深色 · 录音</b>按钮内就地给出「松开 发送 / ↑ 上滑取消」</div></div>
+    </div></div>
+  </div>
+
+  <!-- ================= 02 按住 affordance ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">02</span><h2>主按钮「按住」affordance</h2><span class="tag t-p0">P0</span></div>
+    <p class="note">现状待机态只有一颗呼吸麦克风，<b>没有任何「按住」的暗示</b>；用户第一次必然先点一下，而点击无响应。
+    建议在图标下加 9.5sp 的 <code>按住 喊话</code>（浅色 <code>TextSecondary</code> / 深色 <code>TextSecondary</code>），
+    同时把按钮描边补上（浅色主题尤其必要）。麦克风尺寸与呼吸动效<b>保持不变</b>——它是这个 app 的情绪锚点。</p>
+    <div class="panel"><div class="grid">
+      <div class="cell"><div class="zoom-btn light lg"><div class="disc" style="border-color:transparent;box-shadow:0 4px 14px rgba(28,44,64,.08)"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent)"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg></div></div>
+        <div class="cap"><b>现状 · 浅色（2×）</b>无描边 · 无文案 · 边界靠阴影勉强辨认</div></div>
+
+      <div class="cell"><div class="zoom-btn light lg"><div class="disc"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent);width:66px;height:66px"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold" style="color:var(--t2)">按住 喊话</div></div></div>
+        <div class="cap"><b>建议 · 浅色（2×）</b>+1dp <code>Stroke</code> 描边 · 图标 76→66 让位文案</div></div>
+
+      <div class="cell"><div class="zoom-btn dark dk"><div class="disc"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent);width:66px;height:66px"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold" style="color:var(--t2)">按住 喊话</div></div></div>
+        <div class="cap"><b>建议 · 深色（2×）</b>深色下现状描边已存在，保持</div></div>
+    </div>
+    <div class="kpi">
+      <div><b>9.5sp</b>微文案字号（车机一瞥可读下限）</div>
+      <div><b>0 点击</b>现状是空响应，改后点击仍不动作（保持长按语义）</div>
+      <div><b>1 行</b>文案引入的布局位移：按钮内容整体上移约 6dp</div>
+    </div></div>
+  </div>
+
+  <!-- ================= 03 上滑取消 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">03</span><h2>上滑取消的可发现性与就地反馈</h2><span class="tag t-p0">P0</span></div>
+    <p class="note">现状：手指按在圆心，取消反馈却在 200dp 外的顶栏（顶栏变红 + 圆内换成 ×），且「上滑」这个手势无人能猜。
+    建议四帧序列：<b>按下即告知手势</b> → <b>上滑时圆底由下往上实心填充</b> → <b>越过阈值（120px）转取消态</b>。
+    填充高度即上滑进度，手指原地可见，不用移开视线。顶栏文案同步简化为两态。</p>
+    <div class="panel"><div class="grid">
+
+      <div class="cell"><div class="zoom-btn light lg" style="background:var(--light-bg)"><div class="disc" style="background:linear-gradient(180deg,rgba(255,77,79,.14),rgba(255,77,79,.06));border-color:rgba(255,77,79,.40)"></div>
+        <div class="body"><div class="bars" style="color:var(--danger)"><i style="height:18px;background:#FF4D4F"></i><i style="height:32px;background:#FF4D4F"></i><i style="height:42px;background:#FF4D4F"></i><i style="height:26px;background:#FF4D4F"></i><i style="height:36px;background:#FF4D4F"></i><i style="height:16px;background:#FF4D4F"></i></div>
+        <div class="hint" style="color:var(--danger)">松开 发送</div><div class="sub" style="color:var(--t2)"><span class="chev"></span>上滑取消</div></div></div>
+        <div class="cap"><b>①按下 · 0%</b>手势提示立即出现</div></div>
+
+      <div class="cell"><div class="zoom-btn light lg" style="background:var(--light-bg)"><div class="disc" style="background:linear-gradient(180deg,rgba(255,77,79,.14),rgba(255,77,79,.06));border-color:rgba(255,77,79,.40)"></div><div class="fillup" style="height:40%;background:rgba(255,77,79,.26)"></div>
+        <div class="body"><div class="bars" style="color:var(--danger)"><i style="height:18px;background:#FF4D4F"></i><i style="height:32px;background:#FF4D4F"></i><i style="height:42px;background:#FF4D4F"></i><i style="height:26px;background:#FF4D4F"></i><i style="height:36px;background:#FF4D4F"></i><i style="height:16px;background:#FF4D4F"></i></div>
+        <div class="hint" style="color:var(--danger)">松开 发送</div><div class="sub" style="color:var(--t2)"><span class="chev"></span>上滑取消</div></div></div>
+        <div class="cap"><b>②上滑 40%</b>填充随手指上升</div></div>
+
+      <div class="cell"><div class="zoom-btn light lg" style="background:var(--light-bg)"><div class="disc" style="background:linear-gradient(180deg,rgba(255,77,79,.16),rgba(255,77,79,.08));border-color:rgba(255,77,79,.46)"></div><div class="fillup" style="height:82%;background:rgba(255,77,79,.46)"></div>
+        <div class="body"><div class="bars" style="color:var(--danger)"><i style="height:18px;background:#FF4D4F"></i><i style="height:32px;background:#FF4D4F"></i><i style="height:42px;background:#FF4D4F"></i><i style="height:26px;background:#FF4D4F"></i><i style="height:36px;background:#FF4D4F"></i><i style="height:16px;background:#FF4D4F"></i></div>
+        <div class="hint" style="color:var(--danger)">松开 发送</div><div class="sub" style="color:var(--t2)"><span class="chev"></span>继续上滑即取消</div></div></div>
+        <div class="cap"><b>③上滑 82%（临界）</b>靠近阈值，文案升级</div></div>
+
+      <div class="cell"><div class="zoom-btn light lg" style="background:var(--light-bg)"><div class="disc" style="background:rgba(255,77,79,.88);border-color:#FF4D4F"></div>
+        <div class="body"><svg class="cancelx" viewBox="0 0 24 24" style="fill:#fff"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <div class="hint" style="color:#fff">松开 取消</div></div></div>
+        <div class="cap"><b>④越过阈值</b>实心红 + ×，触觉切 TextHandleMove</div></div>
+    </div></div>
+  </div>
+
+  <!-- ================= 04 图标去重 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">04</span><h2>底栏图标去重</h2><span class="tag t-p1">P1</span></div>
+    <p class="note"><code>MainActivity.kt:685</code> 的 <code>VoiceEffect.UNCLE → RecordVoiceOver</code> 与 <code>:741</code> 的快捷语音
+    <b>是同一个图标</b>——截图里相邻两项呈两个「说话小人」，只差颜色。快捷语音建议改 <code>Bolt</code>（即点即播的瞬时感）或
+    <code>Chat</code>（语义更稳）。推荐 <b>Bolt</b>：与左侧「变声」的「人声」语义拉开距离。</p>
+    <div class="panel"><div class="grid">
+      <div class="cell"><div class="dock" style="position:static;transform:none">
+        <div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔</div>
+        <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>快捷语音</div>
+        <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+      </div><div class="cap"><b>现状</b>前两项图标完全相同（仅颜色不同）</div></div>
+
+      <div class="cell"><div class="dock" style="position:static;transform:none">
+        <div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔<span class="badge"></span></div>
+        <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div>
+        <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+      </div><div class="cap"><b>建议 · Bolt</b>三图标语义正交：人声 / 瞬时 / 外放</div></div>
+
+      <div class="cell"><div class="dock" style="position:static;transform:none">
+        <div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔<span class="badge"></span></div>
+        <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>快捷语音</div>
+        <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+      </div><div class="cap"><b>备选 · Chat</b>更保守，但「对话」与「播报」语义略偏</div></div>
+    </div></div>
+  </div>
+
+  <!-- ================= 05 选中态语义 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">05</span><h2>底栏选中态语义拆分</h2><span class="tag t-p1">P1</span></div>
+    <p class="note">现状一种绿色表达两种含义：<b>「大叔」绿 = 变声效果已启用（持久）</b>，<b>「快捷语音」绿 = 面板展开中（临时）</b>。
+    面板一关绿就消失，而隔壁的绿却一直在——用户会误判成三个 tab。建议拆成两套视觉：<b>面板展开 = 浅底 + 文字加粗</b>（现有 BrandElevated，无需新增令牌）；
+    <b>效果启用 = 右上小圆点</b>（Accent，5dp）。文字回归中性色，让「点」只表达持久状态。</p>
+    <div class="panel"><div class="grid">
+      <div class="cell"><div class="dock" style="position:static;transform:none"><div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>原声</div><div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div><div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div></div>
+        <div class="cap"><b>①全默认</b>原声 · 无面板 · 无效果点</div></div>
+
+      <div class="cell"><div class="dock" style="position:static;transform:none"><div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔</div><div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div><div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div></div>
+        <div class="cap"><b>②现状：效果启用</b>整项变绿，与「面板展开」撞语义</div></div>
+
+      <div class="cell"><div class="dock" style="position:static;transform:none"><div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3zm7.76-6.64l-1.68 1.69c.84 1.18.84 2.71 0 3.89l1.68 1.69c2.02-2.2 2.02-5.07 0-7.27zM20.07 2l-1.63 1.63c2.77 3.02 2.77 7.56 0 10.74L20.07 16c3.9-3.89 3.91-9.95 0-14z"/></svg>大叔<span class="badge"></span></div><div class="dockitem sheet"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div><div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div></div>
+        <div class="cap"><b>③建议：两种状态并存</b>浅底=面板开 · 圆点=效果启用</div></div>
+    </div></div>
+  </div>
+
+  <!-- ================= 06 浅色主按钮对比度 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">06</span><h2>浅色主题主按钮边界</h2><span class="tag t-p1">P1</span></div>
+    <p class="note">白渐变圆落在 <code>#F2F5F8</code> 背景上，实测只有约 <b>1.06:1</b> 的明度差；代码里其实一直有 1dp <code>Stroke</code> 描边，但
+    <code>#D6DFEB</code> 对 <code>#F2F5F8</code> 仅约 <b>1.17:1</b>，等于看不见——所以白天强光下按钮边界会消失。
+    <b>落地采用 D 方案（补充柔投影）</b>：不动描边与渐变令牌，用一层 14dp 的暖灰投影把圆钮从浅底上托起来；
+    深色主题下黑投影不可见，零副作用。A 方案（加深描边）仍在候选，B/C 已否决。</p>
+    <div class="panel"><div class="grid">
+      <div class="cell"><div class="zoom-btn light lg"><div class="disc" style="border-color:transparent;box-shadow:0 4px 14px rgba(28,44,64,.08)"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent);width:66px;height:66px"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold" style="color:var(--t2)">按住 喊话</div></div></div>
+        <div class="cap"><b>现状</b>描边存在但 1.17:1，视觉上等同无边界</div></div>
+      <div class="cell"><div class="zoom-btn light lg"><div class="disc"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent);width:66px;height:66px"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold" style="color:var(--t2)">按住 喊话</div></div></div>
+        <div class="cap"><b>A · 加深描边（候选）</b>描边提至可辨对比，需动令牌</div></div>
+      <div class="cell"><div class="zoom-btn light lg"><div class="disc" style="background:linear-gradient(180deg,#FFFFFF,#E2EAF1);border-color:#C9D5E1"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent);width:66px;height:66px"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold" style="color:var(--t2)">按住 喊话</div></div></div>
+        <div class="cap"><b>B · 渐变加深</b>存在感最强，但偏离 Brand 令牌</div></div>
+      <div class="cell"><div class="zoom-btn dark dk"><div class="disc"></div>
+        <div class="body"><svg class="mic" viewBox="0 0 24 24" style="fill:var(--accent);width:66px;height:66px"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold" style="color:var(--t2)">按住 喊话</div></div></div>
+        <div class="cap"><b>C · 深底圆（不建议）</b>破坏浅色座舱调性</div></div>
+    </div></div>
+  </div>
+
+  <!-- ================= 07 P2 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">07</span><h2>打磨项 · 基线与排版</h2><span class="tag t-p2">P2</span></div>
+    <p class="note"><b>左：</b>齿轮 <code>bottom=36dp</code>（高 58dp，中心距底 65dp）与底栏 <code>bottom=44dp</code>（高约 54dp，中心距底 71dp）
+    中心线差 6dp，截图肉眼可见齿轮偏低。建议齿轮 <code>bottom=41dp</code> 对齐中心线。
+    <b>右：</b>顶部胶囊 13sp → 14.5sp，默认态文字 <code>TextSecondary</code> → <code>TextPrimary</code>（对白底 4.0:1 → 13.9:1）。</p>
+    <div class="panel"><div class="grid">
+      <div class="cell"><div class="screen light small">
+        <div class="toppill big"><span class="dot"></span>车载喊话系统已就绪</div>
+        <div class="mainbtn"><svg class="mic" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><div class="hold">按住 喊话</div></div>
+        <div class="baseline"><span>中心线</span></div>
+        <div class="gear"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+        <div class="dock" style="bottom:30px;transform:translateX(-50%) scale(.72);transform-origin:center bottom">
+          <div class="dockitem effect"><svg viewBox="0 0 24 24"><path d="M9 13c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0-1c1.66 0 3-1.34 3-3S10.66 6 9 6 6 7.34 6 9s1.34 3 3 3z"/></svg>大叔<span class="badge"></span></div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"/></svg>快捷语音</div>
+          <div class="dockitem"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>车外音效</div>
+        </div>
+      </div><div class="cap"><b>建议后</b>齿轮与底栏共享中心线（虚线），顶部胶囊 14.5sp / TextPrimary</div></div>
+    </div>
+    <div class="kpi">
+      <div><b>bottom 41dp</b>齿轮修正值（原 36dp）</div>
+      <div><b>14.5sp</b>顶栏字号（原 13sp）</div>
+      <div><b>13.9:1</b>顶栏文字对白底对比（原 4.0:1）</div>
+      <div><b>196dp</b>倒计时环建议值（原 208dp，收紧与 184dp 按钮的留白）</div>
+    </div></div>
+  </div>
+
+  <!-- ================= 08 落地清单 ================= -->
+  <div class="sec">
+    <div class="sec-h"><span class="no">08</span><h2>落地清单（零交互改动）</h2><span class="tag" style="background:#DCF5E8;color:#0B7A52">已实现</span></div>
+    <table>
+      <tr><th style="width:66px">优先级</th><th style="width:170px">改动点</th><th>具体做法</th><th style="width:200px">位置</th><th style="width:74px">状态</th></tr>
+      <tr><td>P0</td><td>按钮内「按住 喊话」</td><td>待机分支加 <code>Text("按住 喊话", 13sp, TextSecondary, letterSpacing 1sp)</code>；麦克风 76dp→66dp</td><td><code>MainActivity.kt</code> 待机分支</td><td>✅ 已落地</td></tr>
+      <tr><td>P0</td><td>录音态手势就地提示</td><td>录音分支加 <code>松开 发送</code>（Danger 13sp 加粗）+ <code>↑ 上滑取消</code>（TextSecondary 11sp）；电平柱 80dp→64dp 让位</td><td><code>MainActivity.kt</code> 录音分支</td><td>✅ 已落地</td></tr>
+      <tr><td>P0</td><td>上滑取消填充进度</td><td>新增 <code>cancelProgress</code> 状态（<code>mutableFloatStateOf</code>），阈值提为常量 <code>CANCEL_DRAG_THRESHOLD_PX = 120f</code>；圆底叠一层 Danger 填充，高度 = 进度、透明度 <code>0.06+0.50×进度</code>；手势结束归零</td><td><code>MainActivity.kt</code> 手势块 + 按钮内容</td><td>✅ 已落地</td></tr>
+      <tr><td>P1</td><td>快捷语音图标去重</td><td><code>Icons.Rounded.RecordVoiceOver</code> → <code>Icons.Rounded.Bolt</code></td><td><code>MainActivity.kt</code> 功能 2</td><td>✅ 已落地</td></tr>
+      <tr><td>P1</td><td>效果启用改用圆点</td><td>去掉 <code>isCustomVoice</code> 对文字/图标的染色（恒 TextPrimary），改在标签右上叠 5dp Accent 圆点；<code>showVoiceSheet</code> 的 BrandElevated 底保留（文字加粗表示展开）</td><td><code>MainActivity.kt</code> 功能 1</td><td>✅ 已落地</td></tr>
+      <tr><td>P1</td><td>浅色主按钮边界</td><td><b>方案调整</b>：原判「无描边」有误——描边一直在，只是 1.17:1 不可见。改为不动令牌，补 <code>Modifier.shadow(14.dp, CircleShape, ambient 0x1F1C2C40, spot 0x2E1C2C40)</code>；深色下黑投影不可见，无副作用</td><td><code>MainActivity.kt</code> 主按钮 modifier</td><td>✅ 已落地</td></tr>
+      <tr><td>P2</td><td>齿轮基线对齐</td><td>齿轮 <code>bottom 36dp → 41dp</code>，与底部功能栏共享中心线</td><td><code>MainActivity.kt</code> 设置齿轮</td><td>✅ 已落地</td></tr>
+      <tr><td>P2</td><td>顶栏排版</td><td>胶囊字号 13sp→14.5sp；默认态文字 <code>TextSecondary</code>→<code>TextPrimary</code>（4.0:1→13.9:1）</td><td><code>MainActivity.kt</code> 顶部胶囊</td><td>✅ 已落地</td></tr>
+      <tr><td>P2</td><td>倒计时环收紧</td><td><code>Modifier.size(208.dp)</code> → <code>196.dp</code></td><td><code>MainActivity.kt</code> CountdownRing</td><td>✅ 已落地</td></tr>
+    </table>
+    <p class="note" style="margin-top:14px">全部改动不触碰状态机、触控区尺寸与音频链路；仅文案、颜色、间距与图标。已通过 <code>compileDebugKotlin</code> 与 <code>assembleDebug</code> 离线编译验证。</p>
+  </div>
+
+</div>
+</body>
+</html>

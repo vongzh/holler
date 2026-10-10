@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.18" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EFF3F7"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#tile)"/>
+  <g transform="translate(2.5,-1)">
+    <path fill-rule="evenodd" fill="#26313D" d="M22,75 L22,66.5 C22,63.6 23.8,61.9 26.6,61.5 L38,60 L45,54.4
+      C46,53.5 47.2,53.1 48.5,53.1 L58.5,53.1 C59.8,53.1 61,53.6 61.8,54.5 L68.3,60 L72.5,60.9
+      C75.3,61.3 76.8,63 76.8,65.9 L76.8,75 Z
+      M46.5,58.8 L61,58.8 L58.2,55.8 L49.3,55.8 Z
+      M27.4,75 A6.6,6.6 0 0 1 40.6,75 Z
+      M57.4,75 A6.6,6.6 0 0 1 70.6,75 Z"/>
+    <circle cx="34" cy="75" r="4.6" fill="#26313D"/>
+    <circle cx="64" cy="75" r="4.6" fill="#26313D"/>
+    <g fill="none" stroke-linecap="round" stroke-width="5.2">
+      <path d="M56.26,48.15 A10,10 0 0 1 66.19,52.26" stroke="#0FBF76" opacity="1"/>
+      <path d="M54.70,39.29 A19,19 0 0 1 73.56,47.10" stroke="#5FDCAF" opacity="0.9"/>
+      <path d="M53.14,30.43 A28,28 0 0 1 80.93,41.94" stroke="#5FDCAF" opacity="0.55"/>
+    </g>
+  </g>
+</svg>

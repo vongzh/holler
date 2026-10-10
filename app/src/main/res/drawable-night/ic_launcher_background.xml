@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 夜间深色模式：深邃星空墨蓝微渐变 -->
+    <path
+        android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="0"
+                android:endX="54"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF0B1C28" />
+                <item android:offset="0.6" android:color="#FF06131D" />
+                <item android:offset="1.0" android:color="#FF02070B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 右上方极光漫反射微光 -->
+    <path
+        android:pathData="M 68,44 A 28,28 0 1,1 68,43.9 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="68"
+                android:centerY="44"
+                android:gradientRadius="28"
+                android:type="radial">
+                <item android:offset="0.0" android:color="#241AE5A3" />
+                <item android:offset="1.0" android:color="#00000000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>

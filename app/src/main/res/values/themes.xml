@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Holler" parent="android:Theme.Material.NoActionBar">
-        <!-- 与 Compose 侧 HollerColors.BgBase 对齐，避免冷启动白闪 -->
-        <item name="android:windowBackground">#FF0A0F14</item>
-        <item name="android:statusBarColor">#FF0A0F14</item>
-        <item name="android:navigationBarColor">#FF0A0F14</item>
-        <item name="android:windowLightStatusBar">false</item>
+    <style name="Theme.Holler" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 与 Compose 侧 LightHollerColors.BgBase (#F2F5F8) 对齐，避免白昼座舱冷启动闪出深色底。
+             深色座舱由 values-night/themes.xml 覆盖。 -->
+        <item name="android:windowBackground">#FFF2F5F8</item>
+        <item name="android:statusBarColor">#FFF2F5F8</item>
+        <item name="android:navigationBarColor">#FFF2F5F8</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>
