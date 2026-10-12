@@ -21,6 +21,14 @@ gradlew.bat text eol=crlf
 *.xml       text eol=lf
 *.md        text eol=lf
 *.pro       text eol=lf
+*.py        text eol=lf
+
+# 仓库自身的元文件：与平台无关，也统一 LF
+.editorconfig  text eol=lf
+.gitattributes text eol=lf
+.gitignore     text eol=lf
+LICENSE        text eol=lf
+NOTICE         text eol=lf
 
 # 二进制资源：禁止行尾转换与 diff
 *.png       binary
