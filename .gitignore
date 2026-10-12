@@ -35,6 +35,9 @@ local.properties
 # 设计过程中的临时目录（栅格化中间产物、整页截图切片等）
 **/_tmp/
 
+# 设计验证时的临时探针截图（tmp-probe.png / tmp-t1.png …），只作本地比对
+/docs/design/impl/tmp-*.png
+
 # 第三方界面参考图：仅供本地分析 Flyme Auto 版式，版权归原出处，不随仓库分发
 /docs/icon/ref/
 

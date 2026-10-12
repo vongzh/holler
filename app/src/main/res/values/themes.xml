@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Holler" parent="android:Theme.Material.Light.NoActionBar">
-        <!-- 与 Compose 侧 LightHollerColors.BgBase (#F2F5F8) 对齐，避免白昼座舱冷启动闪出深色底。
+        <!-- 与 Compose 侧 LightHollerColors.BgBase (#E2E9F1) 对齐，避免白昼座舱冷启动闪出异色调。
+             注意：Compose 背景是 BgBaseTop(#F7FAFC)→BgBase(#E2E9F1) 的垂直渐变，
+             窗口背景取渐变底的 BgBase（与 values-night 用 BgBase 的约定一致）。
              深色座舱由 values-night/themes.xml 覆盖。 -->
-        <item name="android:windowBackground">#FFF2F5F8</item>
-        <item name="android:statusBarColor">#FFF2F5F8</item>
-        <item name="android:navigationBarColor">#FFF2F5F8</item>
+        <item name="android:windowBackground">#FFE2E9F1</item>
+        <item name="android:statusBarColor">#FFE2E9F1</item>
+        <item name="android:navigationBarColor">#FFE2E9F1</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
     </style>

@@ -99,8 +99,8 @@ adb shell getprop ro.build.version.release  # 期望 11
 |---|---|---|
 | **JDK 17** | 🔴 必需 | 编译 Kotlin、运行 Gradle。**装 Studio 也需要它**（Studio 自带 JBR，命令行则要单独装） |
 | **Android SDK cmdline-tools** | 🔴 必需 | 含 `sdkmanager`，用来下载 platform / build-tools |
-| **SDK Platform 36** | 🔴 必需 | Holler `compileSdk = 36` |
-| **SDK Build-Tools 36** | 🔴 必需 | 编译打包 |
+| **SDK Platform 37** | 🔴 必需 | Holler `compileSdk = 37`（本机实测目录名为 `android-37.0`，对应 Android 17） |
+| **SDK Build-Tools 36.0.0** | 🔴 必需 | 编译打包（AGP 9.4 要求的最低版本） |
 | **platform-tools** | 🔴 必需 | 提供 `adb`，装 APK、连车机、看日志 |
 | **Gradle** | 🔴 必需 | 用项目自带的 wrapper 即可（三件套已补齐，会自动下载） |
 | Android Studio | ⚪ 可省 | 约 3.5 GB。可省的部分只有：图形编辑器、Logcat 面板、AVD 图形管理器 |
@@ -193,12 +193,12 @@ Android Studio 自带 JetBrains Runtime（JBR 21），若只用 Studio 的 ▶ �
 
 | 标签页 | 必装项 | 说明 |
 |---|---|---|
-| SDK Platforms | **Android 16 (API 36)** | Holler 的 `compileSdk = 36` |
-| SDK Tools | **Android SDK Build-Tools 36** | 编译所需 |
+| SDK Platforms | **Android 17 (API 37)** | Holler 的 `compileSdk = 37` |
+| SDK Tools | **Android SDK Build-Tools 36.0.0** | 编译所需 |
 | SDK Tools | **Android SDK Platform-Tools** | 提供 `adb`，连车机用 |
 | SDK Tools | **Android SDK Command-line Tools** | 命令行构建（可选但推荐） |
 
-> Holler 的 `minSdk = 28`（Android 9），覆盖车机系统版本；`targetSdk = 36`。
+> Holler 的 `minSdk = 30`（Android 11，对应 Flyme Auto 车机基线）；`targetSdk = 37`。
 
 **设置环境变量**（`adb` 加入 PATH）：
 
@@ -380,8 +380,13 @@ sdkmanager --version            # 先确认能用
 # 接受许可（会连续问多个，全部输入 y）
 sdkmanager --licenses
 
-# 装必需组件
-sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+# 装必需组件。
+# ⚠ platform 刻意不写死版本：本机实测 compileSdk 37 对应目录名是 `android-37.0`
+#   （不是 `android-37`），写死 `platforms;android-37` 可能报 package not found。
+#   AGP 9.4 自带 SDK 下载器，联网构建时会按 compileSdk 自动补齐，因此这里只装
+#   platform-tools 与 build-tools 即可；若想预先装 platform，先 `sdkmanager --list`
+#   确认实际包名再装。
+sdkmanager "platform-tools" "build-tools;36.0.0"
 ```
 
 > 国内网络慢，可加代理环境变量：
