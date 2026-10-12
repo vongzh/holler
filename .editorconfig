@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# 编辑器统一约定（.idea/ 已不入库，代码风格改由本文件「跟人走」）
+#   IntelliJ / Android Studio、VS Code、Sublime 等均原生支持 .editorconfig。
+# ---------------------------------------------------------------------------
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{kt,kts}]
+# 与 Android Studio 的 Kotlin Official 风格一致
+max_line_length = 120
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+ij_kotlin_name_count_to_use_star_import = 999
+ij_kotlin_name_count_to_use_star_import_for_members = 999
+
+[*.{xml,html}]
+indent_size = 4
+
+[*.{json,yml,yaml,toml}]
+indent_size = 2
+
+[*.md]
+# Markdown 里行尾两个空格是「强制换行」语法，不能裁掉
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+# Windows 批处理必须是 CRLF（与 .gitattributes 的 gradlew.bat text eol=crlf 对应）
+end_of_line = crlf
+
+[*.{png,jpg,jpeg,webp,ico,jar,jks,keystore}]
+# 二进制资源：编辑器不要做任何文本处理
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset

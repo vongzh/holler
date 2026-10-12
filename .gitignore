@@ -14,16 +14,12 @@ local.properties
 
 # ---------------------------------------------------------------------------
 # IDE（Android Studio / IntelliJ）本地文件
+#   .idea/ 整体不入库：里面的路径、设备、运行配置都绑定本机，
+#   多人/多机协作时反而制造冲突。代码风格与检查配置改由
+#   .editorconfig / tools/check.py 这类「跟人走」的手段保证。
 # ---------------------------------------------------------------------------
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-/.idea/vcs.xml
-/.idea/emulatorDisplays.xml
-/.idea/deploymentTargetSelector.xml
+/.idea/
+*.iml
 
 # ---------------------------------------------------------------------------
 # 调试截图（模拟器 / 真机随手截的验证图，不入库）
