@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <defs>
+    <!-- 浅色背景微渐变 -->
+    <linearGradient id="bgGrad" x1="54" y1="0" x2="54" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" />
+      <stop offset="0.5" stop-color="#F4F8FA" />
+      <stop offset="1" stop-color="#E5EDF2" />
+    </linearGradient>
+
+    <!-- 右上方漫反射柔和微光斑 -->
+    <radialGradient id="lightSpot" cx="68" cy="44" r="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00B578" stop-opacity="0.10" />
+      <stop offset="1" stop-color="#00B578" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- 底座微光大圆 -->
+    <linearGradient id="baseGlow" x1="54" y1="22" x2="54" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00B578" stop-opacity="0.12" />
+      <stop offset="1" stop-color="#00B578" stop-opacity="0.02" />
+    </linearGradient>
+
+    <!-- 左侧车身流线渐变 -->
+    <linearGradient id="carStroke" x1="23" y1="35" x2="31" y2="65" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00C785" />
+      <stop offset="1" stop-color="#008052" />
+    </linearGradient>
+
+    <!-- 麦克风拾音罩渐变 -->
+    <linearGradient id="micCap" x1="43.5" y1="38" x2="43.5" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00C785" />
+      <stop offset="1" stop-color="#00965E" />
+    </linearGradient>
+
+    <!-- 麦克风手柄渐变 -->
+    <linearGradient id="micBody" x1="43.5" y1="53" x2="43.5" y2="67" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#007A4D" />
+      <stop offset="1" stop-color="#005A38" />
+    </linearGradient>
+
+    <!-- 车外破壁声浪 1 渐变 -->
+    <linearGradient id="wave1" x1="58" y1="45" x2="68" y2="57.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00A86B" />
+      <stop offset="1" stop-color="#006642" />
+    </linearGradient>
+
+    <!-- 车外破壁声浪 2 渐变 -->
+    <linearGradient id="wave2" x1="66" y1="39" x2="80" y2="57.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00B578" stop-opacity="0.80" />
+      <stop offset="1" stop-color="#00B578" stop-opacity="0.15" />
+    </linearGradient>
+
+    <!-- 图标边缘微投影与描边 -->
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="125%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1A2D40" flood-opacity="0.10" />
+    </filter>
+  </defs>
+
+  <!-- 1. 背景卡片 (Flyme Auto 车规级大圆角卡片) -->
+  <rect x="2" y="2" width="104" height="104" rx="24" fill="url(#bgGrad)" stroke="#D8E2EA" stroke-width="1" filter="url(#cardShadow)" />
+  <circle cx="68" cy="44" r="28" fill="url(#lightSpot)" />
+
+  <!-- 2. 底座微光大圆 -->
+  <circle cx="54" cy="54" r="32" fill="url(#baseGlow)" />
+
+  <!-- 3. 左侧车身流线 -->
+  <path d="M 23,65 C 28,62 31,56 31,48 C 31,43 27,37 24,35" stroke="url(#carStroke)" stroke-width="2.6" stroke-linecap="round" fill="none" />
+
+  <!-- 4. 麦克风拾音罩 -->
+  <path d="M 36,46.5 C 36,42.4 39.4,39 43.5,39 C 47.6,39 51,42.4 51,46.5 L 51,51.5 L 36,51.5 Z" fill="url(#micCap)" />
+
+  <!-- 5. 麦克风声学横线 (纯白高光) -->
+  <line x1="39.5" y1="44" x2="47.5" y2="44" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round" />
+  <line x1="38.5" y1="48" x2="48.5" y2="48" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round" />
+
+  <!-- 6. 极细金属分界光隙 -->
+  <line x1="35.5" y1="52.2" x2="51.5" y2="52.2" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round" />
+
+  <!-- 7. 麦克风手柄 -->
+  <path d="M 36.5,53 L 50.5,53 L 50.5,62 C 50.5,64.8 47.4,67 43.5,67 C 39.6,67 36.5,64.8 36.5,62 Z" fill="url(#micBody)" />
+
+  <!-- 8. 破壁声浪 1 (内层高清晰穿透光弧) -->
+  <path d="M 58,45 C 64.5,47.5 68,52.5 68,57.5 C 68,62.5 64.5,67 58,69.5" stroke="url(#wave1)" stroke-width="3.4" stroke-linecap="round" fill="none" />
+
+  <!-- 9. 破壁声浪 2 (外层扩散光弧) -->
+  <path d="M 66,39 C 75.5,43 80,50 80,57.5 C 80,65 75.5,72 66,76" stroke="url(#wave2)" stroke-width="3.0" stroke-linecap="round" fill="none" />
+
+  <!-- 10. 灵动能量星点 -->
+  <circle cx="83" cy="34" r="1.8" fill="#00A86B" />
+</svg>

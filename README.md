@@ -1,9 +1,9 @@
 <div align="center">
 
-# 吼 (Holler) - 车规级车外定向喊话与车载外放广播系统
+# Holler - 车规级车外定向喊话与车载外放广播系统
 
 <p align="center">
-  <img src="docs/icon/png/green-megaphone-192.png" alt="Holler Logo" width="96" height="96" />
+  <img src="docs/icon/png/holler-logo.png" alt="Holler Logo" width="100" height="100" />
 </p>
 
 ### “一按即说，声达车外。”
@@ -29,7 +29,7 @@
   <img src="docs/design/impl/v2-recording-dark.png" alt="Holler 录音喊话与声波律动" width="88%" />
 </p>
 <p align="center">
-  <em>图 1: 吼 (Holler) 车规级车外定向扬声、实时声波柱律动与 Alive Design 原生座舱交互主界面</em>
+  <em>图 1: Holler 车规级车外定向扬声、实时声波柱律动与 Alive Design 原生座舱交互主界面</em>
 </p>
 
 <br/>
@@ -56,7 +56,7 @@
 
 ## 🌟 项目简介
 
-**吼 (Holler)** 针对以**领克 08 (Lynk & Co 08)** 为代表搭载**芯擎科技 龙鹰一号 (DragonHawk 1 / SE1000)** 7nm 高性能智能座舱芯片的车型深度定制研发，并广泛兼容基于 Android 11+ (API 30+) 的高通骁龙 **8155 / 8295** 等主流车规级大屏智能座舱生态。
+**Holler** 针对以**领克 08 (Lynk & Co 08)** 为代表搭载**芯擎科技 龙鹰一号 (DragonHawk 1 / SE1000)** 7nm 高性能智能座舱芯片的车型深度定制研发，并广泛兼容基于 Android 11+ (API 30+) 的高通骁龙 **8155 / 8295** 等主流车规级大屏智能座舱生态。
 
 系统打破了车载封闭系统对外部扬声器接口调用的物理与软件壁垒，基于 **Android Automotive Audio HAL 底层路由动态探测与四层容灾调度**、**纯 Kotlin 零原生依赖的低延迟实时 DSP 变声处理链**、**硬件级动态增益与啸叫防破音限幅 (AGC)**，深度融合 **Flyme Auto 原生座舱 Alive Design 设计语言**，为车主提供全天候、零感融入、随触即达的车外定向音频交互与广播体验：无论是礼让行人、狭窄会车喊话，还是倒车预警、趣味音效互动，均可“一按即说，声达车外”。
 
