@@ -2651,6 +2651,22 @@ private fun SettingsPage(
                     "变声核心",
                     "纯 Kotlin 车规级实时数字信号处理 (DSP) 引擎",
                 )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "免责声明与安全守则",
+                    color = HollerTheme.colors.TextPrimary,
+                    fontSize = HollerType.Body,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "1. 功能域边界：本软件严格限定于座舱信息娱乐域（车外定向扬声与语音广播），绝不涉及、不介入、亦不篡改任何车辆底层动力系统、转向机构、制动控制、安全气囊或车身网关控制指令。\n" +
+                        "2. 文明守则：使用车外外放与广播功能时，请严格遵守《中华人民共和国道路交通安全法》及所在地相关法律法规，文明用车，切勿在医院、学校等禁鸣区域或夜间扰民。\n" +
+                        "3. 责任承担：驾驶人须对行车过程及周边安全负全部责任。本软件按开源协议“原样”提供，开发者不对因使用本软件产生的任何交通违规、行车事故、人身财产损失或争议承担法律责任。",
+                    color = HollerTheme.colors.TextSecondary,
+                    fontSize = HollerType.Caption,
+                    lineHeight = 17.sp,
+                )
             }
         }
     }
