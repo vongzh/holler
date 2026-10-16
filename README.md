@@ -217,12 +217,16 @@ adb shell am start -n com.vongzh.holler/.ui.MainActivity
 支持通过方向盘自定义按键、语音助手、Tasker 或车载自动化引擎直接发送广播：
 
 ```bash
-# 触发快捷语文本播报
-adb shell am broadcast -a com.vongzh.holler.ACTION_SPEAK \
+# 触发车外快捷语音播报（指定文本）
+adb shell am broadcast -a com.vongzh.holler.action.PLAY_PHRASE \
   --es text "文明行车，请关闭远光灯，谢谢！"
 
-# 停止当前车外播报
-adb shell am broadcast -a com.vongzh.holler.ACTION_STOP
+# 开始喊话（按下方控键） / 结束喊话并车外外放（松开方控键）
+adb shell am broadcast -a com.vongzh.holler.action.START_TALK
+adb shell am broadcast -a com.vongzh.holler.action.STOP_TALK
+
+# 切换喊话状态（按一下开，再按一下关）
+adb shell am broadcast -a com.vongzh.holler.action.TOGGLE_TALK
 ```
 
 ### 3. Logcat 车辆日志关键词防抖触发

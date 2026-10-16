@@ -342,7 +342,8 @@ fun HollerApp() {
     val store = remember { PhraseStore(context) }
     val speaker = remember { PhraseSpeaker(context) }
 
-    var stage by remember { mutableStateOf(HollerEngine.Stage.IDLE) }
+    val stageState = remember { mutableStateOf(HollerEngine.Stage.IDLE) }
+    var stage by stageState
     var route by remember { mutableStateOf<AudioRouteResolver.RouteInfo?>(null) }
     var level by remember { mutableStateOf(0) }
     var elapsed by remember { mutableStateOf(0f) }
@@ -466,7 +467,7 @@ fun HollerApp() {
     // 引擎状态回调 → 界面：用 Listener 替代手动回写，避免状态不一致
     DisposableEffect(engine) {
         val l = object : HollerEngine.Listener {
-            override fun onStageChanged(s: HollerEngine.Stage) { stage = s }
+            override fun onStageChanged(stage: HollerEngine.Stage) { stageState.value = stage }
             override fun onPhraseResult(message: String) { hint = message }
         }
         engine.registerListener(l)
