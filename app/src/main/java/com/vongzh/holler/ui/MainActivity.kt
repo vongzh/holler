@@ -2,6 +2,8 @@ package com.vongzh.holler.ui
 
 import android.Manifest
 import android.content.Context
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -37,6 +39,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -68,15 +71,21 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Whatshot
@@ -121,6 +130,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -138,6 +148,10 @@ import com.vongzh.holler.audio.PhraseSpeaker
 import com.vongzh.holler.audio.PhraseStore
 import com.vongzh.holler.audio.UsageSweeper
 import com.vongzh.holler.audio.dsp.VoiceEffect
+import com.vongzh.holler.audio.media.HollerMediaEngine
+import com.vongzh.holler.audio.media.LocalMediaScanner
+import com.vongzh.holler.audio.media.MediaItem
+import kotlin.math.roundToInt
 import com.vongzh.holler.ui.theme.HollerShapes
 import com.vongzh.holler.ui.theme.HollerSpacing
 import com.vongzh.holler.ui.theme.HollerTheme
@@ -182,6 +196,14 @@ class MainActivity : ComponentActivity() {
         runCatching {
             startForegroundService(Intent(this, HollerForegroundService::class.java))
         }.onFailure { Log.w("Holler", "前台服务启动失败: ${it.message}") }
+
+        // 自动拉起车机常驻悬浮控制
+        runCatching {
+            val store = PhraseStore(this)
+            if (store.floatingEnabled && Settings.canDrawOverlays(this)) {
+                FloatingTalkService.start(this)
+            }
+        }.onFailure { Log.w("Holler", "悬浮服务启动失败: ${it.message}") }
     }
 }
 
@@ -190,10 +212,10 @@ class MainActivity : ComponentActivity() {
 /**
  * 上滑取消的手势阈值（dp）：手指上移超过该距离即进入取消态，同时作为「上滑进度」的分母。
  *
- * 取 90dp ≈ 主按钮半径（Ø184dp/2 = 92dp）：语义与手感统一为「手指滑出圆钮 = 取消」，
+ * 取 130dp ≈ 主按钮半径（Ø268dp/2 = 134dp）：语义与手感统一为「手指滑出圆钮 = 取消」，
  * 而不是「轻微抖动就取消」。用 dp 而非 px，保证不同 density 的车机上手感一致。
  */
-private const val CANCEL_DRAG_THRESHOLD_DP = 90f
+private const val CANCEL_DRAG_THRESHOLD_DP = 130f
 
 /**
  * Popover 气泡外形：圆角矩形主体 + 底部一枚指向锚点的小三角。
@@ -353,9 +375,11 @@ fun HollerApp() {
     var hint by remember { mutableStateOf(defaultHint) }
 
     var showSettings by remember { mutableStateOf(false) }
+    var showDeviceSelector by remember { mutableStateOf(false) }
     var showPhrase by remember { mutableStateOf(false) }
     var showVoiceSheet by remember { mutableStateOf(false) }
-    var showSoundSheet by remember { mutableStateOf(false) }
+    var showSoundFxSheet by remember { mutableStateOf(false) }
+    var showMusicSheet by remember { mutableStateOf(false) }
     var newPhraseInput by remember { mutableStateOf("") }
     var phraseList by remember { mutableStateOf(store.items()) }
     var voiceEffect by remember { mutableStateOf(store.voiceEffect) }
@@ -363,6 +387,59 @@ fun HollerApp() {
     // 上滑取消进度 0→1（上滑 0→CANCEL_DRAG_THRESHOLD_DP），驱动绿色退场与红色标记升起的两段式就地反馈
     var cancelProgress by remember { mutableFloatStateOf(0f) }
     val haptic = LocalHapticFeedback.current
+    var volumeFraction by remember { mutableFloatStateOf(store.outputVolume) }
+
+    val mediaEngine = remember { HollerMediaEngine.get(context) }
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    LaunchedEffect(volumeFraction) {
+        val maxVol = runCatching { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }.getOrDefault(15).coerceAtLeast(1)
+        val targetIndex = (volumeFraction * maxVol).roundToInt()
+        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetIndex, 0) }
+        mediaEngine.musicVolume = volumeFraction
+    }
+
+    // 车外多媒体播放状态监听
+    var isMediaPlaying by remember { mutableStateOf(mediaEngine.isPlaying) }
+    var currentTrack by remember { mutableStateOf(mediaEngine.currentTrack) }
+    var mediaPos by remember { mutableStateOf(mediaEngine.currentPosition) }
+    var mediaDur by remember { mutableStateOf(mediaEngine.duration) }
+    var mediaTracks by remember { mutableStateOf(mediaEngine.tracks) }
+    var mediaPlayMode by remember { mutableStateOf(mediaEngine.playMode) }
+
+    DisposableEffect(mediaEngine) {
+        val listener = object : HollerMediaEngine.Listener {
+            override fun onPlaybackStateChanged(isPlaying: Boolean, track: MediaItem?) {
+                isMediaPlaying = isPlaying
+                currentTrack = track
+            }
+            override fun onProgressUpdate(positionMs: Long, durationMs: Long) {
+                mediaPos = positionMs
+                mediaDur = durationMs
+            }
+            override fun onPlaylistChanged(tracks: List<MediaItem>) {
+                mediaTracks = tracks
+            }
+            override fun onPlayModeChanged(mode: HollerMediaEngine.PlayMode) {
+                mediaPlayMode = mode
+            }
+        }
+        mediaEngine.registerListener(listener)
+        onDispose { mediaEngine.unregisterListener(listener) }
+    }
+
+    val safAudioPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch(Dispatchers.IO) {
+                val item = LocalMediaScanner.parseFromSafUri(context, uri)
+                withContext(Dispatchers.Main) {
+                    mediaEngine.addTrack(item, playImmediately = true)
+                    hint = "已导入并播放：${item.title}"
+                }
+            }
+        }
+    }
 
     val active = stage == HollerEngine.Stage.RECORDING
     val playing = stage == HollerEngine.Stage.PLAYING
@@ -378,7 +455,9 @@ fun HollerApp() {
         if (active) {
             showVoiceSheet = false
             showPhrase = false
-            showSoundSheet = false
+            showSoundFxSheet = false
+            showMusicSheet = false
+            showDeviceSelector = false
         }
     }
 
@@ -410,6 +489,40 @@ fun HollerApp() {
         engine.usage = r.usage
         // 录音设备：手动指定的独立解析（resolve 只管输出）
         engine.inputDevice = engine.findInputDevice(store.inputDeviceId)
+    }
+
+    val playPhraseAudio: (PhraseStore.Item) -> Unit = { item ->
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        hint = "正在播报：${item.text}"
+        scope.launch {
+            if (!speaker.isReady) speaker.init()
+            var waited = 0
+            while (!speaker.isReady && waited < 3000) {
+                delay(100)
+                waited += 100
+            }
+            val rawPcm = speaker.synthesize(item.text, store.speechRate, store.pitch)
+            if (rawPcm.isNotEmpty()) {
+                val voicePcm = if (store.voiceEffect != VoiceEffect.NATIVE) {
+                    engine.voiceBridge.process(rawPcm)
+                } else rawPcm
+                val chime = if (store.chimeEnabled) engine.chimePcm() else ByteArray(0)
+                val gap = if (store.chimeEnabled) ByteArray(16000 * 2 * 120 / 1000) else ByteArray(0)
+                val singlePhrase = chime + gap + voicePcm
+                val repeatGap = ByteArray(16000 * 2 * 300 / 1000)
+                var combinedAudio = ByteArray(0)
+                for (r in 1..store.repeatCount) {
+                    combinedAudio = if (combinedAudio.isEmpty()) singlePhrase else combinedAudio + repeatGap + singlePhrase
+                }
+                val totalDurationSec = combinedAudio.size.toFloat() / 32000f
+                playingDuration = totalDurationSec.coerceAtLeast(0.8f)
+                playingElapsed = 0f
+                engine.playPcm(combinedAudio)
+                hint = "播报完毕：${item.text}"
+            } else {
+                hint = "播报失败（TTS 未生成声音）"
+            }
+        }
     }
 
     val micPerm = rememberLauncherForActivityResult(
@@ -506,6 +619,18 @@ fun HollerApp() {
     }
 
 
+    // 车机返回键拦截：优先关闭当前弹窗
+    androidx.activity.compose.BackHandler(enabled = showPhrase || showSoundFxSheet || showMusicSheet || showVoiceSheet || showSettings || showDeviceSelector) {
+        when {
+            showDeviceSelector -> showDeviceSelector = false
+            showSettings -> showSettings = false
+            showVoiceSheet -> showVoiceSheet = false
+            showPhrase -> showPhrase = false
+            showSoundFxSheet -> showSoundFxSheet = false
+            showMusicSheet -> showMusicSheet = false
+        }
+    }
+
     Surface(color = HollerTheme.colors.BgBase, modifier = Modifier.fillMaxSize()) {
 
         Box(
@@ -594,6 +719,10 @@ fun HollerApp() {
                         .clip(RoundedCornerShape(20.dp))
                         .background(HollerTheme.colors.BrandElevated.copy(alpha = 0.85f))
                         .border(BorderStroke(1.dp, HollerTheme.colors.Stroke), RoundedCornerShape(20.dp))
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showDeviceSelector = !showDeviceSelector
+                        }
                         .padding(horizontal = 14.dp, vertical = 7.dp)
                 ) {
                     Row(
@@ -618,84 +747,47 @@ fun HollerApp() {
                 }
             }
 
+            // 左侧：车规级高质感悬浮垂直音量条 (驱动车外音量、系统音量与媒体音量，与左下角齿轮按键共享中心垂直基准轴)
+            VerticalVolumeBar(
+                volume = volumeFraction,
+                onVolumeChange = {
+                    volumeFraction = it
+                    store.outputVolume = it
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 26.dp)
+            )
+
             // Center large circle button
             val scale by animateFloatAsState(
-                targetValue = if (active) 0.94f else 1f,
+                targetValue = if (isCancelling) 0.92f else if (active) 0.96f else 1f,
                 animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
                 label = "scale"
             )
-            val buttonGradient = when {
-                // 取消态：按钮回中性玻璃白，红色只留给中央的取消标记圆片——
-                // 否则残留的青绿底与红描边/红圆片同框，红绿相争显得脏。
-                // 注意分支顺序：isCancelling 是 active 的子状态，必须放在 active 之前。
-                isCancelling -> Brush.verticalGradient(
-                    listOf(HollerTheme.colors.BrandElevated, HollerTheme.colors.Brand)
-                )
-                // 录音中：常态青绿淡底，末 3 秒转红
-                active -> Brush.verticalGradient(
-                    listOf(recordTone.copy(alpha = 0.18f), recordTone.copy(alpha = 0.08f))
-                )
-                playing -> Brush.verticalGradient(
-                    listOf(HollerTheme.colors.BrandElevated, HollerTheme.colors.Brand)
-                )
-                else -> Brush.verticalGradient(
-                    listOf(HollerTheme.colors.BrandElevated, HollerTheme.colors.Brand)
-                )
-            }
+            val isDarkTheme = HollerTheme.colors.BgBase.luminance() < 0.5f
 
-
-            // 喊话录制时中心图标与声波的律动缩放动画
+            // 待机状态下微光呼吸
             val iconPulseTransition = rememberInfiniteTransition(label = "iconPulse")
-            val recordingIconScale by iconPulseTransition.animateFloat(
-                initialValue = 0.96f,
-                targetValue = 1.08f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(450, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "iconScale"
-            )
-            // 待机状态下绿色麦克风的明显呼吸与悬浮动画（富有生命力）
-            val idleMicBreathScale by iconPulseTransition.animateFloat(
-                initialValue = 0.90f,
-                targetValue = 1.10f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "idleMicScale"
-            )
-            val idleMicOffsetY by iconPulseTransition.animateFloat(
-                initialValue = -3f,
-                targetValue = 3f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1800, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "idleMicOffset"
-            )
             val idleGlowBreath by iconPulseTransition.animateFloat(
-                initialValue = 0.15f,
-                targetValue = 0.45f,
+                initialValue = 0.14f,
+                targetValue = 0.30f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    animation = tween(2200, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "idleGlowBreath"
             )
 
-            val audioLevelScale = (level / 100f).coerceIn(0f, 0.25f)
-            val dynamicActiveIconScale = recordingIconScale + audioLevelScale
-
-            // 居中主喊话按钮容器（纵向适度下移，缩小与下方操作栏的距离）
+            // 居中喊话主麦克风容器（整体上移 38dp，视觉中心更佳）
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .padding(top = 18.dp)
-                    .size(220.dp),
+                    .offset(y = (-38).dp)
+                    .size(320.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // 周围自由发散的声波水波纹特效（从 184dp 按钮边缘向全屏自由发散）
+                // 1. 周围自由发散的声波水波纹特效
                 AudioGlowRippleView(
                     level = level,
                     active = active,
@@ -703,52 +795,312 @@ fun HollerApp() {
                     isCancelling = isCancelling,
                     urgent = urgent,
                     fade = if (active) greenFade else 1f,
-                    baseRadiusDp = 92.dp,
-                    modifier = Modifier.size(600.dp)
+                    baseRadiusDp = 134.dp,
+                    modifier = Modifier.size(880.dp)
                 )
 
-                // 仅录音倒计时显示的动态进度环（播放时纯靠声波扩散与中心喇叭动效，不再叠加奇怪的切口圆环）
-                // 取消态时环随 alpha 淡出：圆底已换成珊瑚填充 + 深红 ×，再叠一条绿色进度弧会打架
+                val recordTone = if (urgent) HollerTheme.colors.Danger else HollerTheme.colors.Accent
+                val recordToneText = if (urgent) HollerTheme.colors.DangerText else HollerTheme.colors.AccentText
+
+                // 2. 录音倒计时显示的动态进度环
                 CountdownRing(
                     elapsedSeconds = elapsed,
                     maxSeconds = HollerEngine.MAX_SECONDS.toFloat(),
                     active = active && !isCancelling,
                     showText = false,
                     fade = greenFade,
-                    modifier = Modifier.size(196.dp)
+                    customColor = recordTone,
+                    modifier = Modifier.size(284.dp)
                 )
 
                 val borderColor = when {
-                    // 红色描边只在判定取消（手指出圈）后出现：上滑全程描边保持纯绿，
-                    // 不做绿→红插值——避免出圈前就有红色成分「预告」，红色出现即意味着已进入取消态
-                    isCancelling -> HollerTheme.colors.Danger
-                    active -> recordTone.copy(alpha = 0.45f)
-                    playing -> HollerTheme.colors.Accent.copy(alpha = 0.5f)
+                    isCancelling -> HollerTheme.colors.Danger.copy(alpha = 0.85f)
+                    active -> recordTone.copy(alpha = 0.55f)
+                    playing -> HollerTheme.colors.Accent.copy(alpha = 0.45f)
                     else -> HollerTheme.colors.Stroke
                 }
 
+                val shadowAmbient = when {
+                    isCancelling -> Color(0x33FF3B30)
+                    active -> recordTone.copy(alpha = 0.20f)
+                    playing -> HollerTheme.colors.Accent.copy(alpha = 0.16f)
+                    else -> if (isDarkTheme) Color(0x33000000) else Color(0x1F1C2C40)
+                }
+                val shadowSpot = when {
+                    isCancelling -> Color(0x44FF453A)
+                    active -> recordTone.copy(alpha = 0.26f)
+                    playing -> HollerTheme.colors.Accent.copy(alpha = 0.20f)
+                    else -> if (isDarkTheme) Color(0x4D000000) else Color(0x2E1C2C40)
+                }
+
+                val baseCardGradient = Brush.verticalGradient(
+                    if (isDarkTheme)
+                        listOf(Color(0xFF1E2836), Color(0xFF121922))
+                    else
+                        listOf(Color(0xFFFFFFFF), Color(0xFFF6F8FB))
+                )
+
+                // 3. 视觉展示层（随手势缩放、带有温润阴影与柔和高光）
                 Box(
                     modifier = Modifier
-                        .size(184.dp)
+                        .size(268.dp)
                         .scale(scale)
-                        // 浅色座舱专用：白圆与浅底明度差仅约 1.06:1，纯描边边界在白天强光下会消失；
-                        // 补一层柔和投影把按钮从背景中托起来（深色主题下黑投影不可见，无副作用）
                         .shadow(
                             elevation = 14.dp,
                             shape = CircleShape,
-                            ambientColor = Color(0x1F1C2C40),
-                            spotColor = Color(0x2E1C2C40),
+                            ambientColor = shadowAmbient,
+                            spotColor = shadowSpot,
                         )
                         .clip(CircleShape)
-                        .background(buttonGradient)
+                        .background(baseCardGradient)
                         .border(
-                            // 判定取消后描边加粗到 2dp，与红 × / 红字同帧出现
-                            BorderStroke(if (isCancelling) 2.dp else 1.dp, borderColor),
+                            BorderStroke(if (isCancelling) 2.dp else 1.2.dp, borderColor),
                             CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 状态高亮柔光层（极柔和的半透明染色，保证温润雅致，绝不刺眼）
+                    if (isCancelling) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            Color(0xFFFF3B30).copy(alpha = 0.14f),
+                                            Color(0xFFFF3B30).copy(alpha = 0.05f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
                         )
+                    } else if (active) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            recordTone.copy(alpha = 0.16f),
+                                            recordTone.copy(alpha = 0.06f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+                    } else if (playing) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            HollerTheme.colors.Accent.copy(alpha = 0.12f),
+                                            HollerTheme.colors.Accent.copy(alpha = 0.04f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+                    }
 
+                    // 顶部 CNC 倒角物理高光反光弧
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawArc(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = if (active) 0.35f else if (isDarkTheme) 0.25f else 0.65f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = size.height * 0.38f
+                            ),
+                            startAngle = 210f,
+                            sweepAngle = 120f,
+                            useCenter = false,
+                            style = Stroke(width = 1.6.dp.toPx())
+                        )
+                    }
+
+                    val cancelMarkAlpha by animateFloatAsState(
+                        targetValue = if (isCancelling) 1f else 0f,
+                        animationSpec = tween(140),
+                        label = "cancelMark"
+                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        if (isCancelling) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.alpha(cancelMarkAlpha)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(72.dp)
+                                ) {
+                                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                                        drawCircle(
+                                            brush = Brush.radialGradient(
+                                                colors = listOf(
+                                                    Color(0xFFFF453A).copy(alpha = 0.22f),
+                                                    Color(0xFFFF453A).copy(alpha = 0.06f),
+                                                    Color.Transparent
+                                                )
+                                            )
+                                        )
+                                    }
+                                    androidx.compose.material3.Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "取消喊话",
+                                        tint = Color(0xFFFF3B30),
+                                        modifier = Modifier.size(52.dp)
+                                    )
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                Text(
+                                    "松开 取消喊话",
+                                    color = Color(0xFFFF3B30),
+                                    fontSize = 16.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.6.sp
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "已放弃本次录音",
+                                    color = HollerTheme.colors.TextSecondary.copy(alpha = 0.8f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
+                        } else if (active) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                AudioEqualizerBars(
+                                    color = recordTone,
+                                    level = level,
+                                    isRecording = true,
+                                    modifier = Modifier
+                                        .size(width = 108.dp, height = 64.dp)
+                                        .alpha(greenFade)
+                                )
+                                Spacer(Modifier.height(14.dp))
+                                Text(
+                                    if (urgent) "松开  紧急广播" else "松开  发送广播",
+                                    color = recordToneText,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp,
+                                    modifier = Modifier.alpha(greenFade)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "↑ 上滑取消",
+                                    color = HollerTheme.colors.TextSecondary.copy(alpha = 0.85f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.alpha(greenFade)
+                                )
+                            }
+                        } else if (playing) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                AudioEqualizerBars(
+                                    color = HollerTheme.colors.Accent,
+                                    level = level,
+                                    isRecording = false,
+                                    modifier = Modifier.size(width = 118.dp, height = 66.dp)
+                                )
+                                Spacer(Modifier.height(14.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(HollerTheme.colors.Accent.copy(alpha = 0.12f))
+                                        .border(
+                                            BorderStroke(1.dp, HollerTheme.colors.Accent.copy(alpha = 0.35f)),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 5.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(HollerTheme.colors.Accent)
+                                        )
+                                        Text(
+                                            "车外广播中...",
+                                            color = HollerTheme.colors.AccentText,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.6.sp
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            val accentCol = HollerTheme.colors.Accent
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    androidx.compose.foundation.Canvas(modifier = Modifier.size(140.dp)) {
+                                        drawCircle(
+                                            brush = Brush.radialGradient(
+                                                colors = listOf(
+                                                    accentCol.copy(alpha = idleGlowBreath * 0.6f),
+                                                    accentCol.copy(alpha = idleGlowBreath * 0.15f),
+                                                    Color.Transparent
+                                                )
+                                            ),
+                                            radius = size.minDimension / 2f
+                                        )
+                                    }
+                                    androidx.compose.material3.Icon(
+                                        imageVector = Icons.Rounded.Mic,
+                                        contentDescription = "按住喊话",
+                                        tint = accentCol,
+                                        modifier = Modifier.size(84.dp)
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "按 住  喊 话",
+                                    color = HollerTheme.colors.TextPrimary,
+                                    fontSize = 16.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "松开发送 · 上滑取消",
+                                    color = HollerTheme.colors.TextSecondary.copy(alpha = 0.75f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    letterSpacing = 0.4.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 4. 独立的顶层手势捕获层（不受内层 scale、重组与动画干扰，杜绝意外断触）
+                Box(
+                    modifier = Modifier
+                        .size(268.dp)
+                        .clip(CircleShape)
                         .pointerInput(Unit) {
-                            // dp → px：阈值以 dp 定义，跨 density 手感一致（车机屏 density 各异）
                             val cancelThresholdPx = CANCEL_DRAG_THRESHOLD_DP.dp.toPx()
                             awaitEachGesture {
                                 val down = awaitFirstDown()
@@ -777,11 +1129,8 @@ fun HollerApp() {
                                     val change = event.changes.firstOrNull { it.id == pointerId } ?: break
 
                                     if (change.pressed) {
-                                        // pointerInput 位于 scale(0.94) 内层，局部坐标被放大 1/scale，
-                                        // 乘回 scale 还原真实位移（dp），否则阈值会在手指出圈前就误触发
-                                        val deltaY = (startY - change.position.y) * scale
+                                        val deltaY = startY - change.position.y
                                         val cancellingNow = deltaY > cancelThresholdPx
-                                        // 就地反馈：上滑进度驱动「绿色退场 → 红色标记升起」，手指不用离开圆钮去看顶栏
                                         cancelProgress = (deltaY / cancelThresholdPx).coerceIn(0f, 1f)
 
                                         if (cancellingNow != isCancelling) {
@@ -808,127 +1157,10 @@ fun HollerApp() {
                                         break
                                     }
                                 }
-                                // 手势结束（抬起/丢失指针）：进度归零
                                 cancelProgress = 0f
                             }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    // 取消态不再绘制「圆片贴纸」：主按钮回中性白、描边转红（见 borderColor），
-                    // 圆内以「红 × + 红字」承载取消语义（下方 isCancelling 分支）。
-                    // 红色只在手指出圈（cancelProgress = 1，判定取消）之后出现——
-                    // 上滑过程中绝不提前泄漏红色，与绿色体系严格分时、不重叠。
-                    // 取消标记淡入：越阈值瞬间 × 与文字短促浮现（140ms），车机操作需要即时确认
-                    val cancelMarkAlpha by animateFloatAsState(
-                        targetValue = if (isCancelling) 1f else 0f,
-                        animationSpec = tween(140),
-                        label = "cancelMark"
-                    )
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        if (isCancelling) {
-                            // 手指出圈（越过阈值）才出现的取消确认：红 × + 红字，无填充、无圆片、无阴影——
-                            // 红色面积收敛到「一枚图标 + 一行字 + 2dp 描边」，克制且语义精确
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.alpha(cancelMarkAlpha)
-                            ) {
-                                androidx.compose.material3.Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "取消喊话",
-                                    tint = HollerTheme.colors.DangerText,
-                                    modifier = Modifier.size(44.dp)
-                                )
-                                Text(
-                                    "松开手指 取消",
-                                    color = HollerTheme.colors.DangerText,
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        } else if (active) {
-                            // 喊话录制态：红色律动声波柱 + 就地操作/手势提示（手指按在圆钮上即可读懂当前状态）
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(5.dp)
-                            ) {
-                                // 绿色系（声波柱 + 两行文案）随上滑进度整体退场，在红标记出现前完全归零：
-                                // 两套色彩体系严格分时，绝不重叠（见 greenFade / cancelReveal）。
-                                AudioEqualizerBars(
-                                    color = recordTone,
-                                    level = level,
-                                    isRecording = true,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .alpha(greenFade)
-                                )
-                                Text(
-                                    "松开 发送",
-                                    color = recordToneText,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.alpha(greenFade)
-                                )
-                                Text(
-                                    "↑ 上滑取消",
-                                    color = HollerTheme.colors.TextSecondary,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.alpha(greenFade)
-                                )
-                            }
-                        } else if (playing) {
-                            // 快捷语音 / 音效播报态：大尺寸翡翠绿优雅跳动的律动波形柱
-                            AudioEqualizerBars(
-                                color = HollerTheme.colors.Accent,
-                                level = level,
-                                isRecording = false,
-                                modifier = Modifier.size(80.dp)
-                            )
-                        } else {
-                            // 未喊话待机时：绿色麦克风悬浮呼吸动效 + 微光能量光斑 + 「按住」操作暗示
-                            val accentCol = HollerTheme.colors.Accent
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    // 待机核心微光柔和呼吸光斑
-                                    androidx.compose.foundation.Canvas(modifier = Modifier.size(120.dp)) {
-                                        drawCircle(
-                                            brush = Brush.radialGradient(
-                                                colors = listOf(
-                                                    accentCol.copy(alpha = idleGlowBreath),
-                                                    accentCol.copy(alpha = idleGlowBreath * 0.25f),
-                                                    Color.Transparent
-                                                )
-                                            ),
-                                            radius = size.minDimension / 2f
-                                        )
-                                    }
-                                    androidx.compose.material3.Icon(
-                                        imageVector = Icons.Rounded.Mic,
-                                        contentDescription = "按住喊话",
-                                        tint = accentCol,
-                                        modifier = Modifier
-                                            .size(66.dp)
-                                            .offset(y = idleMicOffsetY.dp)
-                                            .scale(idleMicBreathScale)
-                                    )
-                                }
-                                // 首次使用者的最大认知断点：点击无响应，必须让人看到「按住」二字
-                                Text(
-                                    "按住 喊话",
-                                    color = HollerTheme.colors.TextSecondary,
-                                    fontSize = 13.sp,
-                                    letterSpacing = 1.sp
-                                )
-                            }
                         }
-                    }
-                }
+                )
             }
 
             // ---- 玻璃材质 ----
@@ -1029,10 +1261,11 @@ fun HollerApp() {
                             .clickable(enabled = !active) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 showPhrase = false
-                                showSoundSheet = false
+                                showSoundFxSheet = false
+                                showMusicSheet = false
                                 showVoiceSheet = !showVoiceSheet
                             }
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1041,17 +1274,15 @@ fun HollerApp() {
                             androidx.compose.material3.Icon(
                                 imageVector = voiceIcon,
                                 contentDescription = voiceEffect.label,
-                                // 文字/图标保持中性色：绿色只留给「持久状态」，避免与面板展开态撞语义
                                 tint = HollerTheme.colors.TextPrimary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                             Text(
                                 voiceEffect.label,
                                 color = HollerTheme.colors.TextPrimary,
-                                fontSize = 15.sp,
+                                fontSize = 14.5.sp,
                                 fontWeight = if (showVoiceSheet) FontWeight.SemiBold else FontWeight.Medium
                             )
-                            // 变声效果已启用：右上角小圆点（持久状态标记），与「面板展开」的浅底互不干扰
                             if (isCustomVoice) {
                                 Box(
                                     modifier = Modifier
@@ -1065,8 +1296,7 @@ fun HollerApp() {
                         }
                     }
 
-
-                    // 功能 2：快捷语音
+                    // 功能 2：快捷短语
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(24.dp))
@@ -1074,44 +1304,44 @@ fun HollerApp() {
                             .clickable(enabled = !active) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 showVoiceSheet = false
-                                showSoundSheet = false
+                                showSoundFxSheet = false
+                                showMusicSheet = false
                                 showPhrase = !showPhrase
                             }
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             androidx.compose.material3.Icon(
-                                // 与「变声/大叔」去重：原两项同为 RecordVoiceOver，相邻显示完全同形
                                 imageVector = Icons.Rounded.Bolt,
-                                contentDescription = "快捷语音",
-                                // 展开态只用 BrandElevated 底表达（三项一致），文字恒为中性色
+                                contentDescription = "快捷短语",
                                 tint = HollerTheme.colors.TextPrimary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                             Text(
-                                "快捷语音",
+                                "快捷短语",
                                 color = HollerTheme.colors.TextPrimary,
-                                fontSize = 15.sp,
+                                fontSize = 14.5.sp,
                                 fontWeight = if (showPhrase) FontWeight.SemiBold else FontWeight.Medium
                             )
                         }
                     }
 
-                    // 功能 3：车外音效箱 (Boombox)
+                    // 功能 3：趣味音效
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(24.dp))
-                            .background(if (showSoundSheet) HollerTheme.colors.BrandElevated else Color.Transparent)
+                            .background(if (showSoundFxSheet) HollerTheme.colors.BrandElevated else Color.Transparent)
                             .clickable(enabled = !active) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 showVoiceSheet = false
                                 showPhrase = false
-                                showSoundSheet = !showSoundSheet
+                                showMusicSheet = false
+                                showSoundFxSheet = !showSoundFxSheet
                             }
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(horizontal = 16.dp, vertical = 11.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -1119,17 +1349,108 @@ fun HollerApp() {
                         ) {
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
-                                contentDescription = "车外音效",
-                                // 同「快捷语音」：展开态只改底色，文字保持中性
+                                contentDescription = "趣味音效",
                                 tint = HollerTheme.colors.TextPrimary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                             Text(
-                                "车外音效",
+                                "趣味音效",
                                 color = HollerTheme.colors.TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = if (showSoundSheet) FontWeight.SemiBold else FontWeight.Medium
+                                fontSize = 14.5.sp,
+                                fontWeight = if (showSoundFxSheet) FontWeight.SemiBold else FontWeight.Medium
                             )
+                        }
+                    }
+
+                    // 功能 4：车外音乐 (Boombox) · 若媒体播放中展示灵动微岛
+                    if (isMediaPlaying || currentTrack != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(HollerTheme.colors.BrandElevated)
+                                .border(
+                                    BorderStroke(1.dp, if (isMediaPlaying) HollerTheme.colors.Accent.copy(alpha = 0.6f) else HollerTheme.colors.Stroke),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .clickable(enabled = !active) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    showVoiceSheet = false
+                                    showPhrase = false
+                                    showSoundFxSheet = false
+                                    showMusicSheet = !showMusicSheet
+                                }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AudioEqualizerBars(
+                                    color = if (isMediaPlaying) HollerTheme.colors.Accent else HollerTheme.colors.TextSecondary,
+                                    level = if (isMediaPlaying) 65 else 0,
+                                    isRecording = false,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = currentTrack?.title ?: "车外音乐",
+                                    color = HollerTheme.colors.TextPrimary,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 110.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(HollerTheme.colors.Brand)
+                                        .clickable {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            mediaEngine.togglePlayPause()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = if (isMediaPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                        contentDescription = "播放暂停",
+                                        tint = HollerTheme.colors.TextPrimary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(if (showMusicSheet) HollerTheme.colors.BrandElevated else Color.Transparent)
+                            .clickable(enabled = !active) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showVoiceSheet = false
+                                showPhrase = false
+                                showSoundFxSheet = false
+                                showMusicSheet = !showMusicSheet
+                            }
+                            .padding(horizontal = 16.dp, vertical = 11.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Rounded.MusicNote,
+                                    contentDescription = "车外音乐",
+                                    tint = HollerTheme.colors.TextPrimary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Text(
+                                    "车外音乐",
+                                    color = HollerTheme.colors.TextPrimary,
+                                    fontSize = 14.5.sp,
+                                    fontWeight = if (showMusicSheet) FontWeight.SemiBold else FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -1312,7 +1633,6 @@ fun HollerApp() {
                     modifier = Modifier
                         .fillMaxSize()
                         .imePadding()
-                        .background(Color.Black.copy(alpha = 0.55f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -1392,72 +1712,46 @@ fun HollerApp() {
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(16.dp))
-                                            .background(if (isLaunch) HollerTheme.colors.AccentSoft.copy(alpha = 0.5f) else HollerTheme.colors.Brand)
+                                            .background(HollerTheme.colors.Brand)
                                             .border(
                                                 BorderStroke(
                                                     1.dp,
-                                                    if (isLaunch) HollerTheme.colors.Accent else HollerTheme.colors.Stroke
+                                                    HollerTheme.colors.Stroke.copy(alpha = 0.6f)
                                                 ),
                                                 RoundedCornerShape(16.dp)
                                             )
                                             .clickable {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                hint = "正在播报：${item.text}"
                                                 showPhrase = false
-                                                scope.launch {
-                                                    if (!speaker.isReady) speaker.init()
-                                                    var waited = 0
-                                                    while (!speaker.isReady && waited < 3000) {
-                                                        delay(100)
-                                                        waited += 100
-                                                    }
-                                                    val rawPcm = speaker.synthesize(item.text, store.speechRate, store.pitch)
-                                                    if (rawPcm.isNotEmpty()) {
-                                                        val voicePcm = if (store.voiceEffect != VoiceEffect.NATIVE) {
-                                                            engine.voiceBridge.process(rawPcm)
-                                                        } else rawPcm
-                                                        // 若启用了提示音，将「叮咚」与语音合并为一段无缝音频，避免拆分成两次 playPcm 触发两遍动画
-                                                        val chime = if (store.chimeEnabled) engine.chimePcm() else ByteArray(0)
-                                                        val gap = if (store.chimeEnabled) ByteArray(16000 * 2 * 120 / 1000) else ByteArray(0) // 120ms 间隔
-                                                        val singlePhrase = chime + gap + voicePcm
-
-                                                        // 构建完整回放音频（含 repeatCount 次数）
-                                                        val repeatGap = ByteArray(16000 * 2 * 300 / 1000) // 300ms 重复间隔
-                                                        var combinedAudio = ByteArray(0)
-                                                        for (r in 1..store.repeatCount) {
-                                                            combinedAudio = if (combinedAudio.isEmpty()) singlePhrase else combinedAudio + repeatGap + singlePhrase
-                                                        }
-
-                                                        val totalDurationSec = combinedAudio.size.toFloat() / 32000f
-                                                        playingDuration = totalDurationSec.coerceAtLeast(0.8f)
-                                                        playingElapsed = 0f
-
-                                                        engine.playPcm(combinedAudio)
-                                                        hint = "播报完毕：${item.text}"
-                                                    } else {
-                                                        hint = "播报失败（TTS 未生成声音）"
-                                                    }
-                                                }
+                                                playPhraseAudio(item)
                                             }
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 12.dp)
+                                        ) {
+                                            if (isLaunch) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = Icons.Rounded.Star,
+                                                    contentDescription = "默认优先播报",
+                                                    tint = Color(0xFFFFB300),
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                            }
                                             Text(
                                                 text = item.text,
                                                 color = HollerTheme.colors.TextPrimary,
                                                 fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium
+                                                fontWeight = if (isLaunch) FontWeight.SemiBold else FontWeight.Medium,
+                                                modifier = Modifier.weight(1f, fill = false),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                            if (isLaunch) {
-                                                Spacer(Modifier.height(2.dp))
-                                                Text(
-                                                    text = "★ 常用快捷语",
-                                                    color = HollerTheme.colors.AccentText,
-                                                    fontSize = 11.sp
-                                                )
-                                            }
                                         }
 
                                         Row(
@@ -1604,163 +1898,70 @@ fun HollerApp() {
                 }
             }
 
-            // 车外音效（Boombox）：类似 Hey 的居中悬浮卡片大面板
-            AnimatedVisibility(
-                visible = showSoundSheet,
-                enter = scaleIn(initialScale = 0.92f, animationSpec = tween(240, easing = FastOutSlowInEasing)) + fadeIn(tween(180)),
-                exit = scaleOut(targetScale = 0.92f, animationSpec = tween(180, easing = FastOutSlowInEasing)) + fadeOut(tween(180)),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showSoundSheet = false },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .widthIn(max = 680.dp)
-                            .fillMaxWidth(0.9f)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {}
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(HollerTheme.colors.BrandElevated)
-                            .border(
-                                BorderStroke(1.dp, HollerTheme.colors.Stroke),
-                                RoundedCornerShape(28.dp)
-                            )
-                            .padding(horizontal = 24.dp, vertical = 22.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
+            // 趣味车外音效专属弹窗 (Sound Fx Sheet)
+            SoundFxSheet(
+                visible = showSoundFxSheet,
+                onDismiss = { showSoundFxSheet = false },
+                engine = engine,
+                scope = scope,
+                onStatusChange = { hint = it }
+            )
 
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "车外音效箱 (Boombox)",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = HollerTheme.colors.TextPrimary
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        text = "一键播放车外趣味音效与礼让提示音",
-                                        fontSize = 12.sp,
-                                        color = HollerTheme.colors.TextSecondary
-                                    )
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(HollerTheme.colors.Brand)
-                                        .clickable { showSoundSheet = false },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    androidx.compose.material3.Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = "关闭",
-                                        tint = HollerTheme.colors.TextSecondary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.height(20.dp))
-
-                            val soundEffects: List<Pair<Triple<String, String, androidx.compose.ui.graphics.vector.ImageVector>, suspend () -> Unit>> = listOf(
-                                Triple("优雅叮咚", "清脆双音节，温和礼让行人", Icons.Rounded.Notifications) to { engine.playChime() },
-                                Triple("短促鸣笛", "0.2s 柔和短按，提醒前车起步", Icons.Rounded.Campaign) to { engine.playPcm(engine.hornPcm()) },
-                                Triple("倒车蜂鸣", "间歇低频蜂鸣，提示后方行人", Icons.Rounded.GraphicEq) to { engine.playPcm(engine.reverseWarningPcm()) },
-                                Triple("呼哨互动", "欢快互动口哨，趣味友好打招呼", Icons.Rounded.MusicNote) to { engine.playPcm(engine.whistlePcm()) },
-                                Triple("警示长鸣", "连续防险警报音，紧急避险提醒", Icons.Rounded.Warning) to { engine.playPcm(engine.sirenPcm()) },
-                                Triple("基准校音", "440Hz 纯正正弦波，声道快速测试", Icons.AutoMirrored.Rounded.VolumeUp) to { engine.playTone() },
-                            )
-
-
-
-                            // 2列网格卡片布局
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                soundEffects.chunked(2).forEach { rowPair ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        rowPair.forEach { (info, action) ->
-                                            val (name, desc, iconVector) = info
-                                            Row(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(16.dp))
-                                                    .background(HollerTheme.colors.Brand)
-                                                    .border(BorderStroke(1.dp, HollerTheme.colors.Stroke), RoundedCornerShape(16.dp))
-                                                    .clickable {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                        hint = "正在播放车外音效：$name"
-                                                        scope.launch { action() }
-                                                    }
-                                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(40.dp)
-                                                        .clip(CircleShape)
-                                                        .background(HollerTheme.colors.BrandElevated),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    androidx.compose.material3.Icon(
-                                                        imageVector = iconVector,
-                                                        contentDescription = name,
-                                                        tint = HollerTheme.colors.TextPrimary,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = name,
-                                                        color = HollerTheme.colors.TextPrimary,
-                                                        fontSize = 15.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Spacer(Modifier.height(2.dp))
-                                                    Text(
-                                                        text = desc,
-                                                        color = HollerTheme.colors.TextSecondary,
-                                                        fontSize = 11.sp,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        if (rowPair.size == 1) {
-                                            Spacer(Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.height(16.dp))
+            // 车外音乐播放专属弹窗 (Exterior Music Sheet / Boombox)
+            ExteriorMusicSheet(
+                visible = showMusicSheet,
+                onDismiss = { showMusicSheet = false },
+                mediaEngine = mediaEngine,
+                isPlaying = isMediaPlaying,
+                currentTrack = currentTrack,
+                positionMs = mediaPos,
+                durationMs = mediaDur,
+                tracks = mediaTracks,
+                playMode = mediaPlayMode,
+                duckingEnabled = store.duckingEnabled,
+                onDuckingChange = {
+                    store.duckingEnabled = it
+                    mediaEngine.isDuckingEnabled = it
+                    hint = if (it) "已开启车外音频闪避 (喊话时自动避让压低)" else "已关闭车外音频闪避"
+                },
+                onImportClick = { safAudioPicker.launch(arrayOf("audio/*")) },
+                onScanClick = {
+                    scope.launch(Dispatchers.IO) {
+                        val scanned = LocalMediaScanner.scanAll(context)
+                        withContext(Dispatchers.Main) {
+                            mediaEngine.setPlaylist(scanned)
+                            hint = "已重新扫描到 ${scanned.size} 首本地音乐"
                         }
                     }
                 }
+            )
+
+            // 车外音频输出设备选择弹窗 (Device Selector Sheet)
+            val availableDevices = remember {
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter { dev ->
+                    dev.type != AudioDeviceInfo.TYPE_TELEPHONY &&
+                    dev.type != AudioDeviceInfo.TYPE_FM_TUNER &&
+                    dev.type != AudioDeviceInfo.TYPE_TV_TUNER
+                }
             }
+            DeviceSelectorSheet(
+                visible = showDeviceSelector,
+                onDismiss = { showDeviceSelector = false },
+                currentRoute = route,
+                availableDevices = availableDevices,
+                preferredDeviceId = store.outputDeviceId.takeIf { it >= 0 },
+                onSelectDevice = { devId ->
+                    store.outputDeviceId = devId ?: -1
+                    refreshRouting(context)
+                    hint = if (devId != null) "已切换车外广播输出设备" else "已恢复智能自动匹配通道"
+                    showDeviceSelector = false
+                },
+                onOpenSettings = {
+                    showDeviceSelector = false
+                    showSettings = true
+                }
+            )
         }
         
         // Full screen dialog overlays
@@ -1961,16 +2162,25 @@ private fun SettingsPage(
     var repeatCount by remember { mutableStateOf(store.repeatCount) }
     var phraseListItems by remember { mutableStateOf(store.items()) }
 
-    // 悬浮窗外观（透明度与尺寸）
+    // 悬浮窗外观（透明度与尺寸、贴边收纳）
     var alpha by remember { mutableStateOf(store.floatingAlpha) }
     var floatSize by remember { mutableStateOf(store.floatingSize.toFloat()) }
+    var autoDock by remember { mutableStateOf(store.floatingAutoDock) }
+    var dockMode by remember { androidx.compose.runtime.mutableIntStateOf(store.floatingDockMode) }
 
     // 通知栏与自启配置
     var notifyQuick by remember { mutableStateOf(store.notifyQuickActions) }
     var bootAuto by remember { mutableStateOf(store.bootAutoStart) }
 
+    // 设备清单分类与精简折叠
+    var deviceTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var deviceFilter by remember { mutableStateOf("") }
+    var isDeviceListExpanded by remember { mutableStateOf(false) }
+
     // 需要文本输入的对话框（关键词自定义 / 设备 id 手填）
     var dialogKind by remember { mutableStateOf(DialogKind.NONE) }
+    var editingPhraseItem by remember { mutableStateOf<PhraseStore.Item?>(null) }
+    var isAddingPhrase by remember { mutableStateOf(false) }
 
     val storagePerm = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -2107,9 +2317,15 @@ private fun SettingsPage(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(HollerShapes.Control)
-                                .background(if (isLaunch) HollerTheme.colors.AccentSoft else HollerTheme.colors.BgBase.copy(alpha = 0.5f))
-                                .border(BorderStroke(1.dp, if (isLaunch) HollerTheme.colors.Accent else HollerTheme.colors.Stroke), HollerShapes.Control)
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .background(HollerTheme.colors.BgBase.copy(alpha = 0.5f))
+                                .border(
+                                    BorderStroke(1.dp, HollerTheme.colors.Stroke),
+                                    HollerShapes.Control
+                                )
+                                .clickable {
+                                    editingPhraseItem = item
+                                }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -2117,40 +2333,96 @@ private fun SettingsPage(
                                 item.text,
                                 color = HollerTheme.colors.TextPrimary,
                                 fontSize = HollerType.Body,
-                                modifier = Modifier.weight(1f),
+                                fontWeight = FontWeight.Normal,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 12.dp)
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                MiniAction(
-                                    label = if (isLaunch) "★ 常用" else "设常用",
-                                    active = isLaunch,
-                                    onClick = {
-                                        store.launchIndex = item.id
-                                        phraseListItems = store.items()
-                                        HollerForegroundService.update(context)
-                                        onHint("已设为常用快捷语：${item.text}")
-                                    }
-                                )
-                                MiniAction(
-                                    label = "删除",
-                                    danger = true,
-                                    onClick = {
-                                        store.remove(item.id)
-                                        phraseListItems = store.items()
-                                        HollerForegroundService.update(context)
-                                        onHint("已删除快捷语")
-                                    }
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                // 设为常用（🌟星标）按钮
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            store.launchIndex = if (isLaunch) -1L else item.id
+                                            phraseListItems = store.items()
+                                            HollerForegroundService.update(context)
+                                            FloatingTalkService.refreshAppearance(context)
+                                            onHint(if (isLaunch) "已取消常用快捷语" else "已设为常用快捷语：${item.text}")
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = if (isLaunch) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                                        contentDescription = if (isLaunch) "取消常用快捷语" else "设为常用快捷语",
+                                        tint = if (isLaunch) Color(0xFFFFB300) else HollerTheme.colors.TextSecondary.copy(alpha = 0.45f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                // 编辑按钮
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            editingPhraseItem = item
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = Icons.Rounded.Edit,
+                                        contentDescription = "编辑快捷短语",
+                                        tint = HollerTheme.colors.TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                // 删除按钮（纯红垃圾桶，无红框）
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            store.remove(item.id)
+                                            phraseListItems = store.items()
+                                            HollerForegroundService.update(context)
+                                            FloatingTalkService.refreshAppearance(context)
+                                            onHint("已删除快捷语")
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = Icons.Rounded.Delete,
+                                        contentDescription = "删除",
+                                        tint = HollerTheme.colors.DangerText,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    HollerButton("恢复预置常用语料", primary = false, modifier = Modifier.fillMaxWidth(), onClick = {
-                        phraseListItems = store.reset()
-                        HollerForegroundService.update(context)
-                        onHint("已恢复预置语料")
-                    })
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        HollerButton("添加快捷短语", primary = true, modifier = Modifier.weight(1f), onClick = {
+                            isAddingPhrase = true
+                        })
+                        HollerButton("恢复预置常用语料", primary = false, modifier = Modifier.weight(1f), onClick = {
+                            phraseListItems = store.reset()
+                            HollerForegroundService.update(context)
+                            FloatingTalkService.refreshAppearance(context)
+                            onHint("已恢复预置语料")
+                        })
+                    }
                 }
             }
         }
@@ -2159,22 +2431,22 @@ private fun SettingsPage(
         item {
             HollerCard(title = "快捷触发方式", subtitle = "通知栏快捷控制 / 桌面悬浮按钮") {
                 ToggleRow(
-                    title = "通知栏常驻控制",
-                    desc = "从中控顶栏下拉即可快捷喊话或播报快捷语，无遮挡、不占屏幕、无需悬浮权限",
+                    title = "下拉通知中心快捷卡片",
+                    desc = "在中控顶栏下滑展开的通知中心常驻快捷控制面板，支持一键播报与录音（注：Android系统机制限制顶栏仅支持下拉抽屉展示通知）",
                     checked = notifyQuick,
                     onCheckedChange = { want ->
                         store.notifyQuickActions = want
                         notifyQuick = want
                         HollerForegroundService.update(context)
-                        onHint(if (want) "已开启通知栏常驻控制" else "已关闭通知栏常驻控制")
+                        onHint(if (want) "已开启下拉通知中心快捷卡片" else "已关闭下拉通知中心卡片")
                     },
                 )
 
                 Spacer(Modifier.height(12.dp))
 
                 ToggleRow(
-                    title = "桌面悬浮按钮",
-                    desc = "全局悬浮球：单击播快捷语 / 长按说话 / 拖动移动 / 双击收起",
+                    title = "车机常驻悬浮控制",
+                    desc = "Flyme Auto 2.0 旗舰车规级微晶控制岛：常驻顶栏/贴边收纳/一触即喊",
                     checked = floating,
                     onCheckedChange = { want ->
                         if (!want) {
@@ -2200,6 +2472,40 @@ private fun SettingsPage(
                 )
 
                 if (floating) {
+                    Spacer(Modifier.height(14.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = HollerTheme.colors.Brand,
+                        border = BorderStroke(1.dp, HollerTheme.colors.Stroke),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(HollerTheme.colors.Accent, CircleShape)
+                                )
+                                Text(
+                                    "贴边灵动悬浮图标",
+                                    color = HollerTheme.colors.TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "支持全屏自由拖动，松手自动贴边收纳；轻触图标立即展开，支持按住快速喊话与快捷常用语播报，4.5s 智能收纳不遮挡车机界面。",
+                                color = HollerTheme.colors.TextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                            )
+                        }
+                    }
+
                     // ---- 外观参数：透明度 / 尺寸（改动立即生效，无需重启服务）----
                     Spacer(Modifier.height(14.dp))
                     HollerSlider(
@@ -2214,7 +2520,7 @@ private fun SettingsPage(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "悬浮球透明度",
+                        "悬浮透明度",
                         color = HollerTheme.colors.TextSecondary,
                         fontSize = HollerType.Caption,
                     )
@@ -2226,12 +2532,12 @@ private fun SettingsPage(
                             store.floatingSize = it.toInt()
                             FloatingTalkService.refreshAppearance(context)
                         },
-                        range = 96f..220f,
+                        range = 44f..80f,
                         valueLabel = "${floatSize.toInt()}dp",
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "悬浮球尺寸",
+                        "悬浮图标基准尺寸",
                         color = HollerTheme.colors.TextSecondary,
                         fontSize = HollerType.Caption,
                     )
@@ -2522,6 +2828,7 @@ private fun SettingsPage(
         item {
             val outputs = route?.outputDevices.orEmpty()
             val inputs = route?.inputDevices.orEmpty()
+            val cfgDevices = route?.configDevices
             HollerCard(
                 title = "音频设备清单",
                 subtitle = "输出 ${outputs.size} / 输入 ${inputs.size}",
@@ -2533,58 +2840,266 @@ private fun SettingsPage(
                     fontSize = HollerType.Caption,
                     lineHeight = 17.sp,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
 
-                if (outputs.isEmpty()) {
-                    EmptyHint("未枚举到输出设备")
-                } else {
-                    outputs.forEach { d ->
-                        DevicePickRow(
-                            device = d,
-                            selected = store.outputDeviceId == d.id,
-                            onPick = {
-                                store.outputDeviceId = d.id
-                                // 走统一入口：重解析路由并同步 UI 状态 + 引擎
-                                onReresolve()
-                                onHint("输出设备已固定为 id=${d.id}")
-                            },
+                // 1. 当前固定状态总览与一键恢复自动
+                val fixedOutput = outputs.firstOrNull { it.id == store.outputDeviceId }
+                val fixedInput = inputs.firstOrNull { it.id == store.inputDeviceId }
+                val hasFixed = store.outputDeviceId >= 0 || store.inputDeviceId >= 0
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(HollerShapes.Control)
+                        .background(if (hasFixed) HollerTheme.colors.AccentSoft.copy(alpha = 0.5f) else HollerTheme.colors.BgBase.copy(alpha = 0.45f))
+                        .border(
+                            BorderStroke(1.dp, if (hasFixed) HollerTheme.colors.Accent.copy(alpha = 0.5f) else HollerTheme.colors.Stroke.copy(alpha = 0.6f)),
+                            HollerShapes.Control
                         )
-                    }
-                }
-
-                if (inputs.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text("输入设备", color = HollerTheme.colors.TextPrimary, fontSize = HollerType.Body)
-                    Spacer(Modifier.height(6.dp))
-                    inputs.forEach { d ->
-                        DevicePickRow(
-                            device = d,
-                            selected = store.inputDeviceId == d.id,
-                            onPick = {
-                                store.inputDeviceId = d.id
-                                // 走统一入口：重解析路由并同步 UI 状态 + 引擎
-                                onReresolve()
-                                onHint("录音设备已固定为 id=${d.id}")
-                            },
-                        )
-                    }
-                }
-
-                // 先取出局部变量：isNullOrEmpty() 带 contract，
-                // 这样下面的 forEach 不需要 !! 也能智能转换为非空
-                val cfgDevices = route?.configDevices
-                if (!cfgDevices.isNullOrEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text("车机音频配置", color = HollerTheme.colors.TextPrimary, fontSize = HollerType.Body)
-                    Spacer(Modifier.height(6.dp))
-                    cfgDevices.forEach { (dev, ctx) ->
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "· $dev → ${ctx.joinToString("/")}",
-                            color = HollerTheme.colors.TextSecondary,
-                            fontSize = HollerType.Caption,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(vertical = 2.dp),
+                            text = if (fixedOutput != null) "固定输出: ${fixedOutput.productName} (id=${fixedOutput.id})" else "输出路由: 智能自动匹配通道 (推荐)",
+                            color = if (fixedOutput != null) HollerTheme.colors.AccentText else HollerTheme.colors.TextPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        if (fixedInput != null) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "固定录音: ${fixedInput.productName} (id=${fixedInput.id})",
+                                color = HollerTheme.colors.AccentText,
+                                fontSize = 11.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (hasFixed) {
+                        MiniAction(
+                            label = "恢复自动",
+                            onClick = {
+                                store.outputDeviceId = -1
+                                store.inputDeviceId = -1
+                                onReresolve()
+                                onHint("已恢复智能自动匹配")
+                            }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // 2. 类别分段选择器 (Segmented Tab)
+                val tabs = buildList {
+                    add("输出通道 (${outputs.size})")
+                    add("输入通道 (${inputs.size})")
+                    if (!cfgDevices.isNullOrEmpty()) {
+                        add("车机拓扑 (${cfgDevices.size})")
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(HollerTheme.colors.BgBase.copy(alpha = 0.6f))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    tabs.forEachIndexed { index, tabTitle ->
+                        val isSelected = deviceTab == index
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(15.dp))
+                                .background(if (isSelected) HollerTheme.colors.BrandElevated else Color.Transparent)
+                                .clickable {
+                                    deviceTab = index
+                                    deviceFilter = ""
+                                }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = tabTitle,
+                                color = if (isSelected) HollerTheme.colors.TextPrimary else HollerTheme.colors.TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
+                // 3. Tab 内容展示
+                when (deviceTab) {
+                    0, 1 -> {
+                        val isOutput = deviceTab == 0
+                        val currentList = if (isOutput) outputs else inputs
+                        val selectedId = if (isOutput) store.outputDeviceId else store.inputDeviceId
+
+                        // 快速过滤搜索框（当设备数量较多时展示）
+                        if (currentList.size > 4) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(HollerShapes.Control)
+                                    .background(HollerTheme.colors.BgBase.copy(alpha = 0.45f))
+                                    .border(BorderStroke(1.dp, HollerTheme.colors.Stroke.copy(alpha = 0.5f)), HollerShapes.Control)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                BasicTextField(
+                                    value = deviceFilter,
+                                    onValueChange = { deviceFilter = it },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        color = HollerTheme.colors.TextPrimary,
+                                        fontSize = 12.sp
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    decorationBox = { innerTextField ->
+                                        if (deviceFilter.isEmpty()) {
+                                            Text(
+                                                "快速筛选设备名或 ID (如: 50, BUS)...",
+                                                color = HollerTheme.colors.TextSecondary.copy(alpha = 0.65f),
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                )
+                                if (deviceFilter.isNotEmpty()) {
+                                    Text(
+                                        text = "清除",
+                                        color = HollerTheme.colors.AccentText,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.clickable { deviceFilter = "" }
+                                    )
+                                }
+                            }
+                        }
+
+                        val filteredList = remember(currentList, deviceFilter) {
+                            if (deviceFilter.isBlank()) currentList
+                            else currentList.filter {
+                                it.productName.toString().contains(deviceFilter, ignoreCase = true) ||
+                                it.id.toString().contains(deviceFilter.trim()) ||
+                                AudioRouteResolver.typeName(it.type).contains(deviceFilter, ignoreCase = true)
+                            }
+                        }
+
+                        // 排序：已固定的目标置顶展示
+                        val sortedList = remember(filteredList, selectedId) {
+                            filteredList.sortedByDescending { it.id == selectedId }
+                        }
+
+                        // 精简折叠：未搜索且超过 6 项时，默认只展示前 6 项（3 列 2 行）
+                        val displayList = if (!isDeviceListExpanded && deviceFilter.isBlank() && sortedList.size > 6) {
+                            sortedList.take(6)
+                        } else {
+                            sortedList
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        if (displayList.isEmpty()) {
+                            EmptyHint(if (deviceFilter.isNotEmpty()) "未找到符合条件的通道" else "未枚举到通道")
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                displayList.chunked(3).forEach { rowTriplet ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowTriplet.forEach { dev ->
+                                            Box(modifier = Modifier.weight(1f)) {
+                                                DevicePickCard(
+                                                    device = dev,
+                                                    selected = selectedId == dev.id,
+                                                    onPick = {
+                                                        if (isOutput) {
+                                                            if (store.outputDeviceId == dev.id) {
+                                                                store.outputDeviceId = -1
+                                                                onReresolve()
+                                                                onHint("已取消固定，恢复智能自动匹配")
+                                                            } else {
+                                                                store.outputDeviceId = dev.id
+                                                                onReresolve()
+                                                                onHint("输出设备已固定为 id=${dev.id}")
+                                                            }
+                                                        } else {
+                                                            if (store.inputDeviceId == dev.id) {
+                                                                store.inputDeviceId = -1
+                                                                onReresolve()
+                                                                onHint("已取消固定，恢复智能自动匹配")
+                                                            } else {
+                                                                store.inputDeviceId = dev.id
+                                                                onReresolve()
+                                                                onHint("录音设备已固定为 id=${dev.id}")
+                                                            }
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        repeat(3 - rowTriplet.size) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 展开 / 收起折叠切换按钮
+                        if (sortedList.size > 6 && deviceFilter.isBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(HollerShapes.Control)
+                                    .background(HollerTheme.colors.BgBase.copy(alpha = 0.5f))
+                                    .clickable { isDeviceListExpanded = !isDeviceListExpanded }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isDeviceListExpanded) "收起" else "展开全部 (${sortedList.size}) ▾",
+                                    color = HollerTheme.colors.AccentText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    2 -> {
+                        // 车机拓扑配置
+                        Spacer(Modifier.height(8.dp))
+                        if (cfgDevices.isNullOrEmpty()) {
+                            EmptyHint("未获取到车机音频拓扑配置")
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                cfgDevices.forEach { (dev, ctx) ->
+                                    Text(
+                                        "· $dev → ${ctx.joinToString("/")}",
+                                        color = HollerTheme.colors.TextSecondary,
+                                        fontSize = HollerType.Caption,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(HollerShapes.Control)
+                                            .background(HollerTheme.colors.BgBase.copy(alpha = 0.35f))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2690,6 +3205,44 @@ private fun SettingsPage(
             },
         )
     }
+
+    // ---- 文本输入对话框：编辑已有快捷短语 ----
+    editingPhraseItem?.let { item ->
+        TextInputDialog(
+            initial = item.text,
+            onDismiss = { editingPhraseItem = null },
+            onConfirm = { text ->
+                val t = text.trim()
+                editingPhraseItem = null
+                if (t.isNotEmpty() && t != item.text) {
+                    store.rename(item.id, t)
+                    phraseListItems = store.items()
+                    HollerForegroundService.update(context)
+                    FloatingTalkService.refreshAppearance(context)
+                    onHint("快捷短语已更新")
+                }
+            }
+        )
+    }
+
+    // ---- 文本输入对话框：新增快捷短语 ----
+    if (isAddingPhrase) {
+        TextInputDialog(
+            initial = "",
+            onDismiss = { isAddingPhrase = false },
+            onConfirm = { text ->
+                val t = text.trim()
+                isAddingPhrase = false
+                if (t.isNotEmpty()) {
+                    store.add(t)
+                    phraseListItems = store.items()
+                    HollerForegroundService.update(context)
+                    FloatingTalkService.refreshAppearance(context)
+                    onHint("已添加快捷短语：$t")
+                }
+            }
+        )
+    }
 }
 
 /** 设置页里需要弹出文本输入的场景。 */
@@ -2737,6 +3290,74 @@ private fun DevicePickRow(
             )
         }
         MiniAction(if (selected) "已选" else "选用", onPick)
+    }
+}
+
+/**
+ * 紧凑小卡片式设备项：
+ * 点击整张卡片直接选中/取消，选中展示主题色边框与状态徽章，告别冗余按钮与横向长条。
+ */
+@Composable
+private fun DevicePickCard(
+    device: android.media.AudioDeviceInfo,
+    selected: Boolean,
+    onPick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(HollerShapes.Control)
+            .background(
+                if (selected) HollerTheme.colors.AccentSoft else HollerTheme.colors.BgBase.copy(alpha = 0.35f)
+            )
+            .border(
+                BorderStroke(
+                    if (selected) 1.5.dp else 1.dp,
+                    if (selected) HollerTheme.colors.Accent else HollerTheme.colors.Stroke.copy(alpha = 0.6f)
+                ),
+                HollerShapes.Control,
+            )
+            .clickable { onPick() }
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${device.productName}",
+                color = HollerTheme.colors.TextPrimary,
+                fontSize = 12.5.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "id=${device.id} · ${AudioRouteResolver.typeName(device.type)}",
+                color = if (selected) HollerTheme.colors.AccentText else HollerTheme.colors.TextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(HollerTheme.colors.Accent),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = "已固定",
+                    tint = HollerTheme.colors.OnAccent,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
     }
 }
 

@@ -26,21 +26,13 @@ import com.vongzh.holler.ui.theme.HollerTheme
 import com.vongzh.holler.ui.theme.HollerType
 
 /**
- * 录音倒计时环（对齐 Hey! 的 CountdownRingView）。
+ * 录音倒计时高精度流光进度环。
  *
- * 为什么需要：
- *   HollerEngine 有 15 秒录音上限（MAX_SECONDS），达到上限会自动截断。
- *   没有倒计时的话，用户按着说话到一半被截断会莫名其妙；
- *   有了环，能直观看到「还剩多少秒」，可主动收尾。
- *
- * 视觉（沿用 Flyme Auto 纪律）：
- *   - 底环用 Stroke 细线（弱），进度弧用状态色（强），形成「点」而非「面」
- *   - 剩余时间文字在圆心，用等宽字体避免数字跳动
- *   - 最后 3 秒进度弧转为 danger 红，给出提醒
- *
- * @param elapsedSeconds  已录秒数（0 ~ maxSeconds）
- * @param maxSeconds      录音上限
- * @param active          是否正在录音（false 时环整体淡出，不占视觉）
+ * 遵循车规级克制设计原则：
+ * 1. 弱底导轨：1.8dp 微弱轨道底线，不遮蔽背景；
+ * 2. 精准实体流光弧：3.6dp 圆角高光弧，平滑顺时针行进；
+ * 3. 告警变色：常态品牌绿，最后 3 秒自动切换为警示红；
+ * 4. 上滑取消时随 fade 平滑淡出，不与取消标记重叠。
  */
 @Composable
 fun CountdownRing(
@@ -62,63 +54,63 @@ fun CountdownRing(
     val remaining = (maxSeconds - elapsedSeconds).coerceAtLeast(0f)
     val ringColor = customColor ?: when {
         !active -> HollerTheme.colors.TextSecondary
-        // 常态 Accent（正在工作），只有剩余 ≤3s 才转 Danger —— 对应文档承诺的「最后 3 秒预警」，
-        // 避免 15 秒全程常红导致红色失去信号意义。
         remaining <= 3f -> HollerTheme.colors.Danger
         else -> HollerTheme.colors.Accent
     }
-
 
     val baseAlpha by animateFloatAsState(
         targetValue = if (active) 1f else 0f,
         animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
         label = "countdownAlpha",
     )
-    // 内部淡入淡出 × 调用方给的退场系数：上滑取消时环随绿色体系一起让位给红色标记
     val alpha = baseAlpha * fade.coerceIn(0f, 1f)
+    val trackColor = HollerTheme.colors.Stroke
 
-    val strokeColor = HollerTheme.colors.Stroke
     Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = size.minDimension * 0.055f
-            val inset = stroke / 2f
-            val arcSize = Size(size.width - stroke, size.height - stroke)
+            val trackStroke = 1.8.dp.toPx()
+            val arcStroke = 3.6.dp.toPx()
+            val glowStroke = 7.dp.toPx()
+            val inset = glowStroke / 2f
+            val arcSize = Size(size.width - glowStroke, size.height - glowStroke)
 
-            // 倒计时/播报进度弧：只有在激活时才绘制，不显示任何静态外框，避免将中心图标圈起来
             if (active && alpha > 0.01f) {
-                // 弱底轨道（仅录音倒计时或播报时才可见）
+                // 1. 极轻微克制的环境导轨线
                 drawArc(
-                    color = strokeColor.copy(alpha = alpha * 0.35f),
+                    color = trackColor.copy(alpha = alpha * 0.35f),
                     startAngle = -90f,
                     sweepAngle = 360f,
                     useCenter = false,
                     topLeft = Offset(inset, inset),
                     size = arcSize,
-                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                    style = Stroke(width = trackStroke, cap = StrokeCap.Round),
                 )
             }
 
-            // 进度弧：顺时针推进（从 -90° 开始），带有高光发光弧效果
-            if (animated > 0f) {
-                // 发光外晕
+            // 2. 流光进度弧
+            if (animated > 0.002f) {
+                val sweep = (360f * animated).coerceIn(0f, 360f)
+
+                // 2.1 底层微散晕
                 drawArc(
-                    color = ringColor.copy(alpha = alpha * 0.35f),
+                    color = ringColor.copy(alpha = alpha * 0.25f),
                     startAngle = -90f,
-                    sweepAngle = 360f * animated,
+                    sweepAngle = sweep,
                     useCenter = false,
                     topLeft = Offset(inset, inset),
                     size = arcSize,
-                    style = Stroke(width = stroke * 1.6f, cap = StrokeCap.Round),
+                    style = Stroke(width = glowStroke, cap = StrokeCap.Round),
                 )
-                // 实体主光弧
+
+                // 2.2 核心精密流光弧
                 drawArc(
                     color = ringColor.copy(alpha = alpha),
                     startAngle = -90f,
-                    sweepAngle = 360f * animated,
+                    sweepAngle = sweep,
                     useCenter = false,
                     topLeft = Offset(inset, inset),
                     size = arcSize,
-                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                    style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
             }
         }

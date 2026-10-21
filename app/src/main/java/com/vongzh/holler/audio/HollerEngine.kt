@@ -16,6 +16,7 @@ import android.util.Log
 import com.vongzh.holler.audio.dsp.DspChain
 import com.vongzh.holler.audio.dsp.VoiceEffect
 import com.vongzh.holler.audio.dsp.VoiceEffectBridge
+import com.vongzh.holler.audio.media.HollerMediaEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -120,11 +121,11 @@ class HollerEngine private constructor(private val appContext: Context) {
         listeners.remove(l)
     }
 
-    /** 兼容旧代码单个 listener 属性 */
+    /** 兼容旧代码单个 listener 属性，建议使用 registerListener / unregisterListener */
+    @Deprecated("Use registerListener / unregisterListener for multi-subscriber support")
     var listener: Listener?
         get() = listeners.firstOrNull()
         set(v) {
-            listeners.clear()
             v?.let { listeners.add(it) }
         }
 
@@ -285,6 +286,7 @@ class HollerEngine private constructor(private val appContext: Context) {
             }, "holler-record").apply { start() }
 
             Log.i(TAG, "开始录音")
+            HollerMediaEngine.get(appContext).setDucking(true)
             notify(Stage.RECORDING)
             true
         } catch (e: Exception) {
@@ -321,6 +323,7 @@ class HollerEngine private constructor(private val appContext: Context) {
         if (raw.size < MIN_VALID_BYTES) {
             Log.w(TAG, "录音过短，忽略")
             abandonAudioFocus()
+            HollerMediaEngine.get(appContext).setDucking(false)
             notify(Stage.IDLE)
             return raw.size
         }
@@ -351,6 +354,7 @@ class HollerEngine private constructor(private val appContext: Context) {
         peakLevel = 0
         recordStartedAt = 0L
         abandonAudioFocus()
+        HollerMediaEngine.get(appContext).setDucking(false)
         notify(Stage.IDLE)
         Log.i(TAG, "取消录音")
     }
@@ -363,6 +367,7 @@ class HollerEngine private constructor(private val appContext: Context) {
     suspend fun playPcm(pcm: ByteArray) = withContext(Dispatchers.IO) {
         if (pcm.isEmpty()) return@withContext
         playing = true
+        HollerMediaEngine.get(appContext).setDucking(true)
         notify(Stage.PLAYING)
 
         // 播放前请求独占临时焦点，防止车内媒体混音或系统静音
@@ -432,6 +437,7 @@ class HollerEngine private constructor(private val appContext: Context) {
             runCatching { t.release() }
             playing = false
             abandonAudioFocus()
+            HollerMediaEngine.get(appContext).setDucking(false)
             notify(Stage.IDLE)
         }
     }
@@ -549,6 +555,32 @@ class HollerEngine private constructor(private val appContext: Context) {
             phase += 2 * Math.PI * freq / SAMPLE_RATE
             val sample = kotlin.math.sin(phase) * 0.6 * env * Short.MAX_VALUE
             val s = sample.toInt().toShort()
+            out[i * 2] = (s.toInt() and 0xFF).toByte()
+            out[i * 2 + 1] = ((s.toInt() shr 8) and 0xFF).toByte()
+        }
+        return out
+    }
+
+    /** 趣味鸭叫声（快速下滑扫频 + 丰富鼻音谐波，用于互动与避让行人）。 */
+    fun duckPcm(seconds: Double = 0.42): ByteArray {
+        val total = (SAMPLE_RATE * seconds).toInt()
+        val out = ByteArray(total * 2)
+        var phase = 0.0
+        for (i in 0 until total) {
+            val t = i.toDouble() / total
+            val env = when {
+                t < 0.08 -> t / 0.08
+                t > 0.80 -> (1.0 - t) / 0.20
+                else -> 1.0
+            }
+            val freq = 430.0 - 150.0 * (t * 1.3).coerceAtMost(1.0)
+            phase += 2 * Math.PI * freq / SAMPLE_RATE
+            val base = kotlin.math.sin(phase)
+            val harmonic1 = kotlin.math.sin(phase * 2.2) * 0.45
+            val harmonic2 = kotlin.math.sin(phase * 3.6) * 0.25
+            val nasal = kotlin.math.sin(phase * 5.0) * 0.15
+            val sample = (base + harmonic1 + harmonic2 + nasal) * 0.55 * env * Short.MAX_VALUE
+            val s = sample.toInt().coerceIn(-32768, 32767).toShort()
             out[i * 2] = (s.toInt() and 0xFF).toByte()
             out[i * 2 + 1] = ((s.toInt() shr 8) and 0xFF).toByte()
         }

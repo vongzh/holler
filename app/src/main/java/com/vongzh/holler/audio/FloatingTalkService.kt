@@ -9,7 +9,9 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -46,9 +48,15 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
         private const val NOTIFY_ID = 1002
         private const val ACTION_STOP = "com.vongzh.holler.action.STOP_FLOATING"
         private const val ACTION_REFRESH = "com.vongzh.holler.action.REFRESH_FLOATING"
+        const val ACTION_EXPAND = "com.vongzh.holler.action.EXPAND_FLOATING"
+        const val ACTION_COLLAPSE = "com.vongzh.holler.action.COLLAPSE_FLOATING"
 
         @Volatile
         var running = false
+            private set
+
+        @Volatile
+        var instance: FloatingTalkService? = null
             private set
 
         fun start(context: android.content.Context) {
@@ -66,21 +74,48 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
             context.stopService(Intent(context, FloatingTalkService::class.java))
         }
 
+        fun expand(context: android.content.Context) {
+            val svc = instance
+            if (svc != null) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    svc.view?.expandCapsule()
+                }
+            } else {
+                start(context)
+            }
+        }
+
+        fun collapse(context: android.content.Context) {
+            val svc = instance
+            if (svc != null) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    svc.view?.collapseToDock()
+                }
+            }
+        }
+
         /**
          * 让运行中的悬浮窗重新读取 store 里的外观参数（尺寸 / 透明度 / 变声标记）。
          * 服务未运行时是空操作。
          */
         fun refreshAppearance(context: android.content.Context) {
             runCatching {
-                context.startService(
-                    Intent(context, FloatingTalkService::class.java).setAction(ACTION_REFRESH)
-                )
+                val svc = instance
+                if (svc != null) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        svc.applyAppearance()
+                    }
+                } else {
+                    context.startService(
+                        Intent(context, FloatingTalkService::class.java).setAction(ACTION_REFRESH)
+                    )
+                }
             }.onFailure { Log.w(TAG, "刷新悬浮窗失败: ${it.message}") }
         }
     }
 
     private lateinit var wm: WindowManager
-    private var view: FloatingTalkView? = null
+    internal var view: FloatingTalkView? = null
     private var lp: WindowManager.LayoutParams? = null
     private lateinit var store: PhraseStore
     private lateinit var engine: HollerEngine
@@ -105,7 +140,8 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
         }
 
         startForegroundSafely()
-        engine.listener = this
+        instance = this
+        engine.registerListener(this)
         addOverlay()
         running = true
         // TTS 初始化放到后台，不阻塞悬浮按钮显示
@@ -122,6 +158,14 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
             ACTION_REFRESH -> {
                 // 主界面刚改完外观参数，重新读取并应用（尺寸变化需重建 LayoutParams）
                 applyAppearance()
+                return START_STICKY
+            }
+            ACTION_EXPAND -> {
+                view?.expandCapsule()
+                return START_STICKY
+            }
+            ACTION_COLLAPSE -> {
+                view?.collapseToDock()
                 return START_STICKY
             }
         }
@@ -142,12 +186,27 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
     private fun applyAppearance() {
         val v = view ?: return
         val params = lp ?: return
-        val size = store.floatingSize
-        val s = if (v.collapsed) (size * 0.5f).toInt() else size
-        params.width = s
-        params.height = s
-        params.alpha = store.floatingAlpha
+        params.alpha = if (v.mode == FloatingTalkView.Mode.EXPANDED) 1.0f else store.floatingAlpha
         v.effect = store.voiceEffect
+        v.iconSizeDp = store.floatingSize
+
+        val screenW = resources.displayMetrics.widthPixels
+        if (v.mode != FloatingTalkView.Mode.EXPANDED) {
+            params.width = v.dockedWidthPx
+            params.height = v.dockedHeightPx
+            if (!v.isDockedLeft) {
+                params.x = screenW - v.dockedWidthPx
+            }
+        }
+
+        val items = store.items()
+        v.phraseList = items.map { it.text }
+        val currentItem = items.firstOrNull { it.id == store.launchIndex } ?: items.firstOrNull()
+        if (v.phraseList.isNotEmpty()) {
+            val idx = items.indexOfFirst { it.id == store.launchIndex }
+            if (idx >= 0) v.currentPhraseIndex = idx
+        }
+        v.phraseSnippet = currentItem?.text ?: "文明行车"
 
         val isSystemDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -158,7 +217,7 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
         }
 
         runCatching { wm.updateViewLayout(v, params) }
-        Log.i(TAG, "悬浮窗外观已更新: size=$size alpha=${store.floatingAlpha}")
+        Log.i(TAG, "悬浮图标外观已更新: size=${v.iconSizeDp}dp, alpha=${store.floatingAlpha}")
     }
 
     // ------------------------------------------------------------------
@@ -166,10 +225,35 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
     // ------------------------------------------------------------------
 
     private fun addOverlay() {
-        val size = store.floatingSize
+        val density = resources.displayMetrics.density
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+
         val v = FloatingTalkView(this)
+        v.iconSizeDp = store.floatingSize
+        v.autoDock = true
+
+        val items = store.items()
+        v.phraseList = items.map { it.text }
+        val currentItem = items.firstOrNull { it.id == store.launchIndex } ?: items.firstOrNull()
+        if (v.phraseList.isNotEmpty()) {
+            val idx = items.indexOfFirst { it.id == store.launchIndex }
+            if (idx >= 0) v.currentPhraseIndex = idx
+        }
+        v.phraseSnippet = currentItem?.text ?: "文明行车"
+
+        val initW = v.iconSizePx
+        val initH = v.iconSizePx
+        val snapLeft = store.floatingX < (screenW / 2)
+        val initX = if (snapLeft) 0 else screenW - initW
+        val initY = store.floatingY.coerceIn((60 * density).toInt(), (screenH - 120 * density).toInt())
+
+        v.mode = FloatingTalkView.Mode.COLLAPSED
+        v.isDockedLeft = snapLeft
+        v.setInitialWindowPosition(initX, initY)
+
         val params = WindowManager.LayoutParams(
-            size, size,
+            initW, initH,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
@@ -179,8 +263,8 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = store.floatingX
-            y = store.floatingY
+            x = initX
+            y = initY
             alpha = store.floatingAlpha
         }
 
@@ -192,27 +276,28 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
             else -> isSystemDark
         }
         v.effect = store.voiceEffect
-        v.onLongPressStart = { startTalk() }
-        v.onLongPressEnd = { endTalk() }
-        v.onTap = { speakLaunchPhrase() }
-        v.onDoubleTap = {
-            v.collapsed = !v.collapsed
-            // 收起后缩小占用面积，减少遮挡
-            val s = if (v.collapsed) (size * 0.5f).toInt() else size
-            params.width = s
-            params.height = s
-            runCatching { wm.updateViewLayout(v, params) }
+
+        v.onWindowLayout = { w, h, x, y ->
+            Log.i(TAG, "onWindowLayout: w=$w, h=$h, x=$x, y=$y, mode=${v.mode}")
+            params.width = w
+            params.height = h
+            params.x = x
+            params.y = y
+            params.alpha = if (v.mode == FloatingTalkView.Mode.EXPANDED) 1.0f else store.floatingAlpha
+            runCatching {
+                wm.updateViewLayout(v, params)
+                Log.i(TAG, "updateViewLayout SUCCESS: w=${params.width}, h=${params.height}, x=${params.x}, y=${params.y}")
+            }.onFailure {
+                Log.e(TAG, "updateViewLayout FAILED: ${it.message}", it)
+            }
         }
-        v.onDragEnd = { x, y ->
-            // 吸附到最近的左右边缘
-            val screenW = resources.displayMetrics.widthPixels
-            val snapX = if (x + size / 2 < screenW / 2) 8 else screenW - size - 8
-            params.x = snapX
-            params.y = y.coerceAtLeast(8)
-            runCatching { wm.updateViewLayout(v, params) }
-            store.floatingX = params.x
-            store.floatingY = params.y
+        v.onSavePosition = { x, y ->
+            store.floatingX = x
+            store.floatingY = y
         }
+        v.onStartTalk = { startTalk() }
+        v.onEndTalk = { endTalk() }
+        v.onSpeakPhrase = { customText -> speakPhrase(customText) }
 
         runCatching {
             wm.addView(v, params)
@@ -241,20 +326,25 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
         }
     }
 
-    /** 单击：播放设定的快捷语（无设定则播放第一条）。 */
-    private fun speakLaunchPhrase() {
+    /** 播报快捷语（支持指定文本或默认播放设定短语）。 */
+    private fun speakPhrase(customText: String? = null) {
         scope.launch {
             val items = store.items()
-            if (items.isEmpty()) {
-                engine.playHintBeep(660.0)
-                return@launch
+            val textToSpeak = if (!customText.isNullOrBlank()) {
+                customText
+            } else {
+                if (items.isEmpty()) {
+                    engine.playHintBeep(660.0)
+                    return@launch
+                }
+                val idx = store.launchIndex
+                val phrase = items.firstOrNull { it.id == idx } ?: items.first()
+                phrase.text
             }
-            val idx = store.launchIndex
-            val phrase = items.firstOrNull { it.id == idx } ?: items.first()
 
             // 优先 TTS 合成；不可用则用提示音示意
             val pcm = if (speaker.isReady) {
-                speaker.synthesize(phrase.text, store.speechRate, store.pitch)
+                speaker.synthesize(textToSpeak, store.speechRate, store.pitch)
             } else {
                 ByteArray(0)
             }
@@ -286,13 +376,15 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
     // ------------------------------------------------------------------
 
     override fun onStageChanged(stage: HollerEngine.Stage) {
-        view?.state = when (stage) {
-            HollerEngine.Stage.IDLE -> 0
-            HollerEngine.Stage.RECORDING -> 1
-            HollerEngine.Stage.PLAYING -> 2
+        Handler(Looper.getMainLooper()).post {
+            view?.state = when (stage) {
+                HollerEngine.Stage.IDLE -> 0
+                HollerEngine.Stage.RECORDING -> 1
+                HollerEngine.Stage.PLAYING -> 2
+            }
+            if (stage == HollerEngine.Stage.RECORDING) startLevelPolling() else levelJob?.cancel()
+            applyAppearance()
         }
-        if (stage == HollerEngine.Stage.RECORDING) startLevelPolling() else levelJob?.cancel()
-        applyAppearance()
     }
 
     override fun onPhraseResult(message: String) {
@@ -303,9 +395,15 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
     // 生命周期
     // ------------------------------------------------------------------
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyAppearance()
+    }
+
     override fun onDestroy() {
+        instance = null
         running = false
-        if (engine.listener === this) engine.listener = null
+        engine.unregisterListener(this)
         levelJob?.cancel()
         view?.let { runCatching { wm.removeView(it) } }
         view = null
@@ -328,7 +426,8 @@ class FloatingTalkService : Service(), HollerEngine.Listener {
         val n = builder
             .setContentTitle("Holler 悬浮喊话")
             .setContentText("悬浮按钮运行中，点按可收起通知")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(com.vongzh.holler.R.drawable.ic_stat_holler)
+            .setColor(0xFF1AE5A3.toInt())
             .setOngoing(true)
             .addAction(Notification.Action.Builder(null, "停止", pi).build())
             .build()

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -70,10 +72,13 @@ fun HollerCard(
             .fillMaxWidth()
             .clip(HollerShapes.Card)
             .background(
-                Brush.verticalGradient(
-                    if (elevated) listOf(HollerTheme.colors.BrandElevated, HollerTheme.colors.Brand)
-                    else listOf(HollerTheme.colors.Brand, HollerTheme.colors.Brand)
-                )
+                if (elevated) {
+                    Brush.verticalGradient(
+                        listOf(HollerTheme.colors.BrandElevated, HollerTheme.colors.Brand)
+                    )
+                } else {
+                    androidx.compose.ui.graphics.SolidColor(HollerTheme.colors.Brand)
+                }
             )
             .border(
                 BorderStroke(1.dp, if (elevated) HollerTheme.colors.AccentSoft else HollerTheme.colors.Stroke),
@@ -121,16 +126,16 @@ fun HollerSwitch(
     modifier: Modifier = Modifier,
 ) {
     val trackColor by animateColorAsState(
-        targetValue = if (checked) HollerTheme.colors.Accent else HollerTheme.colors.Stroke,
+        targetValue = if (checked) HollerTheme.colors.Accent else HollerTheme.colors.Stroke.copy(alpha = 0.5f),
         label = "switchTrack",
     )
     val knobColor by animateColorAsState(
-        targetValue = if (checked) Color(0xFF06231B) else HollerTheme.colors.TextSecondary,
+        targetValue = if (checked) HollerTheme.colors.OnAccent else HollerTheme.colors.TextSecondary,
         label = "switchKnob",
     )
     val knobOffset by animateFloatAsState(
         targetValue = if (checked) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 900f),
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 850f),
         label = "switchOffset",
     )
 
@@ -139,8 +144,14 @@ fun HollerSwitch(
             .size(width = 52.dp, height = 30.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(
-                if (!enabled) trackColor.copy(alpha = 0.3f)
-                else trackColor.copy(alpha = if (checked) 1f else 0.6f)
+                if (!enabled) trackColor.copy(alpha = 0.25f)
+                else if (checked) trackColor.copy(alpha = 0.95f)
+                else HollerTheme.colors.BrandElevated
+            )
+            .border(
+                1.dp,
+                if (checked) HollerTheme.colors.Accent.copy(alpha = 0.4f) else HollerTheme.colors.Stroke.copy(alpha = 0.5f),
+                RoundedCornerShape(15.dp)
             )
             .pointerInput(enabled) {
                 if (enabled) detectTapGestures { onCheckedChange(!checked) }
@@ -151,8 +162,9 @@ fun HollerSwitch(
             modifier = Modifier
                 .padding(start = 3.dp)
                 .offset(x = (22 * knobOffset).dp)
+                .shadow(3.dp, CircleShape, spotColor = if (checked) HollerTheme.colors.Accent.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.35f))
                 .size(24.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(CircleShape)
                 .background(knobColor)
         )
     }
@@ -182,6 +194,7 @@ fun HollerSlider(
     range: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
     valueLabel: String = "",
+    onValueChangeFinished: (() -> Unit)? = null,
 ) {
     val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
 
@@ -198,6 +211,12 @@ fun HollerSlider(
                         detectHorizontalDragGestures(
                             onDragStart = { off ->
                                 onValueChange(fracToValue(off.x, size.width, range, steps))
+                            },
+                            onDragEnd = {
+                                onValueChangeFinished?.invoke()
+                            },
+                            onDragCancel = {
+                                onValueChangeFinished?.invoke()
                             }
                         ) { change, _ ->
                             onValueChange(fracToValue(change.position.x, size.width, range, steps))
@@ -206,44 +225,53 @@ fun HollerSlider(
                     .pointerInput(range, steps) {
                         detectTapGestures { off ->
                             onValueChange(fracToValue(off.x, size.width, range, steps))
+                            onValueChangeFinished?.invoke()
                         }
                     },
                 contentAlignment = Alignment.CenterStart,
             ) {
-                // 轨道底
+                // 轨道底 (沉浸式暗轨)
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(HollerTheme.colors.Stroke)
+                        .background(HollerTheme.colors.BrandElevated)
+                        .border(0.5.dp, HollerTheme.colors.Stroke.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
                 )
-                // 已选段
+                // 已选段 (渐变流光)
                 Box(
                     Modifier
                         .fillMaxWidth(fraction)
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(HollerTheme.colors.Accent.copy(alpha = 0.85f))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    HollerTheme.colors.Accent.copy(alpha = 0.6f),
+                                    HollerTheme.colors.Accent
+                                )
+                            )
+                        )
                 )
                 // 刻度点
                 if (steps > 0) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         repeat(steps + 1) {
                             Box(
                                 Modifier
-                                    .size(4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(HollerTheme.colors.BgBase.copy(alpha = 0.6f))
+                                    .size(3.dp)
+                                    .clip(CircleShape)
+                                    .background(HollerTheme.colors.BgBase.copy(alpha = 0.7f))
                             )
                         }
                     }
                 }
-                // 拇指
+                // 拇指 (激光微雕立体旋钮)
                 Box(
                     Modifier
                         .fillMaxWidth(fraction)
@@ -252,11 +280,20 @@ fun HollerSlider(
                 ) {
                     Box(
                         Modifier
-                            .size(22.dp)
-                            .clip(RoundedCornerShape(11.dp))
+                            .shadow(5.dp, CircleShape, spotColor = HollerTheme.colors.Accent.copy(alpha = 0.5f))
+                            .size(24.dp)
+                            .clip(CircleShape)
                             .background(HollerTheme.colors.TextPrimary)
-                            .border(3.dp, HollerTheme.colors.Accent, RoundedCornerShape(11.dp))
-                    )
+                            .border(2.5.dp, HollerTheme.colors.Accent, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(HollerTheme.colors.Accent)
+                        )
+                    }
                 }
             }
             if (valueLabel.isNotEmpty()) {
@@ -354,8 +391,8 @@ fun HollerButton(
     }
     val fg = when {
         !enabled -> HollerTheme.colors.TextSecondary.copy(alpha = 0.5f)
-        primary -> Color(0xFF06231B)
-        danger -> HollerTheme.colors.Danger
+        primary -> if (danger) Color.White else HollerTheme.colors.OnAccent
+        danger -> HollerTheme.colors.DangerText
         else -> HollerTheme.colors.TextPrimary
     }
     Box(

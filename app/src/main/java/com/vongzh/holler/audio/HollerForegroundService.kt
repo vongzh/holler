@@ -27,7 +27,7 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
 
     companion object {
         private const val TAG = "Holler/Fg"
-        private const val CHANNEL_ID = "holler_service"
+        private const val CHANNEL_ID = "holler_service_v2"
         private const val NOTIFY_ID = 1001
 
         const val ACTION_UPDATE = "com.vongzh.holler.action.UPDATE_NOTIFICATION"
@@ -100,14 +100,17 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        runCatching { nm.deleteNotificationChannel("holler_service") }
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
             val ch = NotificationChannel(
                 CHANNEL_ID,
                 "Holler 车外喊话控制",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "车外喊话快捷操作与前台保活"
-                setShowBadge(false)
+                setShowBadge(true)
+                setSound(null, null)
+                enableVibration(false)
             }
             nm.createNotificationChannel(ch)
         }
@@ -133,7 +136,8 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
         )
 
         builder.setContentIntent(contentPending)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(com.vongzh.holler.R.drawable.ic_stat_holler)
+            .setColor(0xFF1AE5A3.toInt())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
@@ -169,7 +173,7 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
                     builder.addAction(
                         Notification.Action.Builder(
                             android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_media_play),
-                            "📢 播报快捷语",
+                            "播报快捷语",
                             playPending
                         ).build()
                     )
@@ -189,7 +193,7 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
                     builder.addAction(
                         Notification.Action.Builder(
                             android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_btn_speak_now),
-                            "🎙️ 开始录音",
+                            "开始录音",
                             recordPending
                         ).build()
                     )
@@ -197,7 +201,7 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
             }
 
             HollerEngine.Stage.RECORDING -> {
-                builder.setContentTitle("Holler 车外喊话 · 🔴 正在录音")
+                builder.setContentTitle("Holler 车外喊话 · 正在录音")
                 builder.setContentText("请对麦克风说话，点击下方按钮完成并发送")
 
                 // Action: 停止并发送
@@ -214,7 +218,7 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
                     builder.addAction(
                         Notification.Action.Builder(
                             android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_media_pause),
-                            "⏹️ 停止并对外发送",
+                            "停止并对外发送",
                             stopPending
                         ).build()
                     )
@@ -222,7 +226,7 @@ class HollerForegroundService : Service(), HollerEngine.Listener {
             }
 
             HollerEngine.Stage.PLAYING -> {
-                builder.setContentTitle("Holler 车外喊话 · 🔊 正在车外播报")
+                builder.setContentTitle("Holler 车外喊话 · 正在车外播报")
                 builder.setContentText("音频正定向输出至车外扬声器...")
             }
         }

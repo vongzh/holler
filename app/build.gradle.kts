@@ -42,8 +42,8 @@ android {
         //    必须改回对应值，否则 APK 直接装不上。
         minSdk = 30
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 7
+        versionName = "0.3.4"
     }
 
     signingConfigs {
@@ -78,6 +78,12 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -106,4 +112,5 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
 }

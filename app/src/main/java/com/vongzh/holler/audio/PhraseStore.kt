@@ -150,7 +150,7 @@ class PhraseStore(private val context: Context) {
     // ------------------------------------------------------------------
 
     var floatingEnabled: Boolean
-        get() = prefs.getBoolean("enable_floating", false)
+        get() = prefs.getBoolean("enable_floating", true)
         set(v) = prefs.edit().putBoolean("enable_floating", v).apply()
 
     var logcatTriggerEnabled: Boolean
@@ -174,8 +174,20 @@ class PhraseStore(private val context: Context) {
         set(v) = prefs.edit().putFloat("floating_alpha", v.coerceIn(0.3f, 1f)).apply()
 
     var floatingSize: Int
-        get() = prefs.getInt("floating_size", 132)
-        set(v) = prefs.edit().putInt("floating_size", v.coerceIn(96, 220)).apply()
+        get() = prefs.getInt("floating_size", 48).let { if (it !in 44..64) 48 else it }
+        set(v) = prefs.edit().putInt("floating_size", v.coerceIn(44, 64)).apply()
+
+    /** 是否开启贴边智能收纳（闲置时自动收纳为贴边灵动图标） */
+    var floatingAutoDock: Boolean
+        get() = prefs.getBoolean("floating_autodock", true)
+        set(v) = prefs.edit().putBoolean("floating_autodock", v).apply()
+
+    /**
+     * 悬浮快捷控制形态（固定为贴边灵动悬浮图标：自由拖动、松手贴边、点击展开快速喊话与快捷语音）
+     */
+    var floatingDockMode: Int
+        get() = prefs.getInt("floating_dock_mode", 1)
+        set(v) = prefs.edit().putInt("floating_dock_mode", v.coerceIn(0, 2)).apply()
 
     /** 变声效果选择 */
     var voiceEffect: VoiceEffect
@@ -184,6 +196,11 @@ class PhraseStore(private val context: Context) {
         }.getOrDefault(VoiceEffect.NATIVE)
         set(v) = prefs.edit().putString("voice_effect_type", v.name).apply()
 
+    /** 车外总音量 (0.0f ~ 1.0f)，默认 75% 黄金车外音量 */
+    var outputVolume: Float
+        get() = prefs.getFloat("output_volume", 0.75f)
+        set(v) = prefs.edit().putFloat("output_volume", v.coerceIn(0f, 1f)).apply()
+
     var volumeGain: Float
         get() = prefs.getFloat("volume_gain", 1.0f)
         set(v) = prefs.edit().putFloat("volume_gain", v.coerceIn(0.2f, 2.0f)).apply()
@@ -191,6 +208,11 @@ class PhraseStore(private val context: Context) {
     var agcEnabled: Boolean
         get() = prefs.getBoolean("enable_agc", true)
         set(v) = prefs.edit().putBoolean("enable_agc", v).apply()
+
+    /** 车外媒体播放时的音频闪避（避让）开关：麦克风喊话或播报时是否自动压低音乐音量 */
+    var duckingEnabled: Boolean
+        get() = prefs.getBoolean("media_ducking_enabled", true)
+        set(v) = prefs.edit().putBoolean("media_ducking_enabled", v).apply()
 
     // ------------------------------------------------------------------
     // 手动指定音频设备（对齐 Hey! 的 output_device_id / input_device_id）
@@ -291,9 +313,10 @@ class PhraseSpeaker(private val context: Context) {
             if (ready) {
                 val res = tts?.setLanguage(Locale.CHINESE)
                 if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.language = Locale.getDefault()
+                    tts?.setLanguage(Locale.getDefault())
                 }
-                Log.i(TAG, "TTS 引擎就绪, language=${tts?.language}")
+                val currentLocale = runCatching { tts?.voice?.locale }.getOrNull() ?: Locale.getDefault()
+                Log.i(TAG, "TTS 引擎就绪, locale=$currentLocale")
             } else {
                 Log.e(TAG, "TTS 初始化失败, status=$status")
             }

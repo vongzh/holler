@@ -55,6 +55,7 @@ object DspChain {
         if (pcm16.isEmpty()) return pcm16
 
         val n = pcm16.size / 2
+        if (n <= 1) return pcm16
         val buf = FloatArray(n)
         decode(pcm16, buf, n)
 
@@ -65,7 +66,7 @@ object DspChain {
             VoiceEffect.LOLI -> pitchShift(buf, n, factor = 1.32f)
             VoiceEffect.ROBOT -> ringModulate(buf, n, freqHz = 48.0)
             VoiceEffect.ELECTRO -> electro(buf, n)
-            VoiceEffect.MONSTER -> pitchShift(buf, n, factor = 0.65f)
+            VoiceEffect.MONSTER -> monster(buf, n)
         }
 
         // 2) 降噪：压在门限以下的底噪削平
@@ -115,26 +116,54 @@ object DspChain {
     // ==================================================================
 
     /**
-     * 音调变换（变速重采样法）。
+     * 车规级颗粒重叠保留时长的时域音调变换（Granular Overlap-Add Pitch Shifter）。
      *
-     * 原理：把波形按 factor 倍速重采样再拉伸回原长度。
-     *   factor < 1 → 波形变长 → 音调降低（大叔）
-     *   factor > 1 → 波形变短 → 音调升高（萝莉）
+     * 针对车机低延迟自研实现：
+     *   - 采用 512 采样（32ms @ 16kHz）颗粒度，覆盖 60Hz~400Hz 人声基频范围；
+     *   - 50% 步长重叠累加，结合严格补对称的 Hann 窗，保持时域连续性与平滑能量和；
+     *   - 保持原始发音语速与语音总时长不变，彻底避免末端样本冻结产生的嗡鸣声。
      *
-     * 简化处理：只做线性插值重采样，不做相位声码器（车机场景语音清晰度足够）。
+     *   factor < 1.0f → 颗粒内波形拉伸，基频降低（大叔）
+     *   factor > 1.0f → 颗粒内波形压缩，基频升高（萝莉）
      */
     private fun pitchShift(buf: FloatArray, n: Int, factor: Float) {
+        if (n <= 1 || factor == 1.0f) return
         val src = buf.copyOf(n)
-        for (i in 0 until n) {
-            val pos = i * factor
-            val i0 = pos.toInt()
-            val frac = pos - i0
-            buf[i] = if (i0 + 1 < n) {
-                src[i0] * (1f - frac) + src[i0 + 1] * frac
-            } else {
-                src[n - 1]
-            }
+        val out = FloatArray(n)
+
+        val winSize = 512
+        val hop = winSize / 2
+
+        // 预建 Hann 窗（50% 重叠下和为 1.0）
+        val window = FloatArray(winSize) { k ->
+            0.5f * (1f - kotlin.math.cos(2.0 * PI * k / winSize).toFloat())
         }
+
+        var p = 0
+        while (p < n) {
+            val center = p + winSize / 2
+            for (k in 0 until winSize) {
+                val outIdx = p + k
+                if (outIdx >= n) break
+
+                val readPos = center + (k - winSize / 2) * factor
+                val i0 = readPos.toInt()
+                val frac = readPos - i0
+
+                val sample = if (i0 in 0 until (n - 1)) {
+                    src[i0] * (1f - frac) + src[i0 + 1] * frac
+                } else if (i0 == n - 1) {
+                    src[n - 1]
+                } else {
+                    0f
+                }
+
+                out[outIdx] += sample * window[k]
+            }
+            p += hop
+        }
+
+        System.arraycopy(out, 0, buf, 0, n)
     }
 
     /**
@@ -155,21 +184,58 @@ object DspChain {
     }
 
     /**
-     * 电音效果。
+     * 电音效果（律动修音 / 电子合唱）。
      *
-     * 原理：在极短延迟（约 12ms）上叠加原声，形成梳状滤波，
-     * 产生「电子合唱」的金属尾音。
-     * 延迟时间略抖动，避免形成固定音高。
+     * 原理：采用连续正弦 LFO 调制微时延（8~16ms 范围平滑扫描），
+     * 形成平滑移动的梳状滤波与轻微多普勒颤音，产生自然灵动的电子混响质感，
+     * 杜绝周期性跳变带来的固定高频啸叫。
      */
     private fun electro(buf: FloatArray, n: Int) {
+        if (n <= 1) return
         val src = buf.copyOf(n)
-        val baseDelay = (0.012 * 16_000).toInt()   // 12ms
+        val baseDelay = (0.012 * 16_000).toInt()   // 12ms 基准延迟
+        val maxDelay = (n - 1).coerceAtLeast(1)
         for (i in 0 until n) {
-            // 抖动 ±3 采样，破除固定音高感
-            val jitter = ((i % 7) - 3)
-            val d = (baseDelay + jitter).coerceIn(1, n - 1)
+            // 平滑 4.5Hz 低频调制，避免周期阶梯噪音
+            val lfo = sin(2.0 * PI * 4.5 * i / 16_000.0)
+            val jitter = (lfo * 10.0).toInt()
+            val d = (baseDelay + jitter).coerceIn(1, maxDelay)
             val delayed = if (i - d >= 0) src[i - d] else 0f
-            buf[i] = src[i] * 0.7f + delayed * 0.45f
+            buf[i] = src[i] * 0.70f + delayed * 0.45f
+        }
+    }
+
+    /**
+     * 怪兽效果（次低频谐波叠加 + 空间混响 + 低频震颤）。
+     *
+     * 算法链：
+     *   1. 降低基频至 0.68f，构建低沉骨架；
+     *   2. 提取过零点生成次八度谐波（Sub-octave 40~80Hz）并经一阶低通滤波注入声浪厚度；
+     *   3. 叠加 28ms 短反射混响与 18Hz 微颤，营造沉重洞穴怪兽压迫感。
+     */
+    private fun monster(buf: FloatArray, n: Int) {
+        if (n <= 1) return
+        pitchShift(buf, n, factor = 0.68f)
+
+        // 次低频谐波发生器（过零点极性翻转法，自研生成精准 1/2 次八度音）
+        val sub = FloatArray(n)
+        var flip = 1.0f
+        var prev = 0f
+        var lp = 0f
+        for (i in 0 until n) {
+            if (buf[i] >= 0f && prev < 0f) flip = -flip
+            prev = buf[i]
+            // 一阶平滑低通，滤除高次方波杂音，仅留饱满次低频
+            lp += 0.22f * (buf[i] * flip - lp)
+            sub[i] = lp
+        }
+
+        val slapbackDelay = (0.028 * 16_000).toInt() // 28ms 短反射
+        for (i in 0 until n) {
+            val delayed = if (i - slapbackDelay >= 0) buf[i - slapbackDelay] else 0f
+            // 18Hz 极轻微幅值震颤，增添机械怪兽生命感
+            val tremolo = 1.0f + 0.15f * sin(2.0 * PI * 18.0 * i / 16_000.0).toFloat()
+            buf[i] = (buf[i] * 0.68f + sub[i] * 0.42f + delayed * 0.30f) * tremolo
         }
     }
 

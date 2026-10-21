@@ -8,6 +8,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,7 +22,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 录音与播报状态下的灵动跳动声波柱组件。
- * 5 根胶囊条柱随音量与动态相位有节奏地上下起伏，替代生硬缩放的静态图标。
+ * 5 根胶囊条柱随音量与动态相位有节奏地上下起伏，呈现清晰灵敏的声学电平反馈。
  */
 @Composable
 fun AudioEqualizerBars(
@@ -36,7 +37,7 @@ fun AudioEqualizerBars(
         initialValue = 0.25f,
         targetValue = 0.95f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (isRecording) 350 else 420, easing = FastOutSlowInEasing),
+            animation = tween(if (isRecording) 320 else 400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "phase1"
@@ -45,7 +46,7 @@ fun AudioEqualizerBars(
         initialValue = 0.35f,
         targetValue = 1.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (isRecording) 480 else 550, easing = FastOutSlowInEasing),
+            animation = tween(if (isRecording) 440 else 520, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "phase2"
@@ -54,29 +55,29 @@ fun AudioEqualizerBars(
         initialValue = 0.20f,
         targetValue = 0.85f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (isRecording) 400 else 460, easing = FastOutSlowInEasing),
+            animation = tween(if (isRecording) 380 else 440, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "phase3"
     )
 
-    val normalizedLevel = (level / 100f).coerceIn(0.1f, 1f)
+    val normalizedLevel = (level / 100f).coerceIn(0.08f, 1f)
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.size(74.dp, 54.dp)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val barCount = 5
-            val barWidth = 8.dp.toPx()
+            val barWidth = 6.dp.toPx()
             val totalSpacing = size.width - (barCount * barWidth)
-            val gap = totalSpacing / (barCount - 1)
+            val gap = (totalSpacing / (barCount - 1)).coerceAtLeast(3.dp.toPx())
             val maxBarHeight = size.height
-            val minBarHeight = 10.dp.toPx()
+            val minBarHeight = (size.height * 0.20f).coerceAtLeast(6.dp.toPx())
 
             // 5 根柱子的高度权重乘数，形成自然的中间高、两边低曲线
             val heightMultipliers = floatArrayOf(
                 (0.35f + phase3 * 0.45f * normalizedLevel),
-                (0.50f + phase1 * 0.50f * normalizedLevel),
-                (0.65f + phase2 * 0.35f * normalizedLevel),
-                (0.50f + phase3 * 0.50f * normalizedLevel),
+                (0.55f + phase1 * 0.45f * normalizedLevel),
+                (0.70f + phase2 * 0.30f * normalizedLevel),
+                (0.55f + phase3 * 0.45f * normalizedLevel),
                 (0.35f + phase1 * 0.45f * normalizedLevel)
             )
 
@@ -85,6 +86,7 @@ fun AudioEqualizerBars(
                 val left = i * (barWidth + gap)
                 val top = (size.height - h) / 2f
                 
+                // 实体立体胶囊条柱
                 drawRoundRect(
                     color = color,
                     topLeft = Offset(left, top),

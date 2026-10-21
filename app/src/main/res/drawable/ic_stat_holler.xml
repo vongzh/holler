@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Holler 官方车规级状态栏单色矢量图标 (24x24dp 纯白规范) -->
+    <group
+        android:scaleX="0.32"
+        android:scaleY="0.32"
+        android:translateX="-5.12"
+        android:translateY="-5.6">
+
+        <!-- 1. 左侧车身流线 -->
+        <path
+            android:pathData="M 23,65 C 28,62 31,56 31,48 C 31,43 27,37 24,35"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4.5"
+            android:strokeLineCap="round" />
+
+        <!-- 2. 核心麦克风头部 -->
+        <path
+            android:pathData="M 36,46.5 C 36,42.4 39.4,39 43.5,39 C 47.6,39 51,42.4 51,46.5 L 51,51.5 L 36,51.5 Z"
+            android:fillColor="#FFFFFFFF" />
+
+        <!-- 3. 麦克风 2 道横线 (镂空暗纹) -->
+        <path
+            android:pathData="M 39.5,44 L 47.5,44"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="1.8"
+            android:strokeLineCap="round" />
+
+        <path
+            android:pathData="M 38.5,48 L 48.5,48"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="1.8"
+            android:strokeLineCap="round" />
+
+        <!-- 4. 麦克风手柄 -->
+        <path
+            android:pathData="M 36.5,53 L 50.5,53 L 50.5,62 C 50.5,64.8 47.4,67 43.5,67 C 39.6,67 36.5,64.8 36.5,62 Z"
+            android:fillColor="#FFFFFFFF" />
+
+        <!-- 5. 破壁声浪光弧 -->
+        <path
+            android:pathData="M 58,45 C 64.5,47.5 68,52.5 68,57.5 C 68,62.5 64.5,67 58,69.5"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="6.0"
+            android:strokeLineCap="round" />
+
+        <path
+            android:pathData="M 66,39 C 75.5,43 80,50 80,57.5 C 80,65 75.5,72 66,76"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="5.0"
+            android:strokeLineCap="round" />
+
+        <!-- 6. 灵动星点 -->
+        <path
+            android:pathData="M 83,34 A 2.5,2.5 0 1,1 83,33.9 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

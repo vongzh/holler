@@ -31,6 +31,7 @@ class HollerColors(
     val GlassEdgeBottom: Color,        // 玻璃面高光描边渐变底（收敛，避免整圈亮线发闷）
     val AccentText: Color,             // 强调色「文本档」：浅色主题下把 Accent 压深，保证小字号可读
     val DangerText: Color,             // 警示色「文本档」：同上
+    val OnAccent: Color,               // 强调色前景（按钮文字/开关滑块在 Accent 上的颜色）
 )
 
 val DarkHollerColors = HollerColors(
@@ -50,6 +51,7 @@ val DarkHollerColors = HollerColors(
     GlassEdgeBottom = Color(0xFF233446),
     AccentText = Color(0xFF1AE5A3),    // 深色底上青绿本身已 10.4:1，文本档与强调色同值
     DangerText = Color(0xFFFF5252),
+    OnAccent = Color(0xFF06231B),      // 深色模式青绿背景上的高对比暗色前景
 )
 
 // Flyme Auto 白昼座舱高级浅色调（避免纯白眩光与刺眼红色）
@@ -75,6 +77,7 @@ val LightHollerColors = HollerColors(
     // 图标、圆点、描边、填充等「非文本」仍用原 Accent / Danger 保品牌观感。
     AccentText = Color(0xFF00754C),
     DangerText = Color(0xFFC62B27),
+    OnAccent = Color(0xFFFFFFFF),      // 浅色模式绿色主按键上的纯白文字
 )
 
 val LocalHollerColors = staticCompositionLocalOf { DarkHollerColors }

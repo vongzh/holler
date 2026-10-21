@@ -9,9 +9,13 @@
     <!-- 前台服务（保活，保证喊话随时可用） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- 悬浮喊话按钮 / 日志监听：均为 specialUse 类型 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 读取车机本地音乐与 U 盘音频 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- 车机开机自启前台服务与通知栏控制 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -95,6 +99,12 @@
                 android:value="monitor logcat keywords to trigger car voice broadcast" />
         </service>
 
+        <!-- 车外音乐媒体播放前台服务（Boombox Media Service） -->
+        <service
+            android:name=".audio.media.HollerMediaService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!--
           外部命令接收器（对齐 Hey! HeyCommandReceiver）。
           导出：方控按键映射 / 第三方自动化工具需要发广播进来。
@@ -107,6 +117,12 @@
                 <action android:name="com.vongzh.holler.action.STOP_TALK" />
                 <action android:name="com.vongzh.holler.action.TOGGLE_TALK" />
                 <action android:name="com.vongzh.holler.action.PLAY_PHRASE" />
+                <action android:name="com.vongzh.holler.action.SHOW_FLOATING" />
+                <action android:name="com.vongzh.holler.action.HIDE_FLOATING" />
+                <action android:name="com.vongzh.holler.action.EXPAND_FLOATING" />
+                <action android:name="com.vongzh.holler.action.COLLAPSE_FLOATING" />
+                <action android:name="com.vongzh.holler.action.SET_THEME_MODE" />
+                <action android:name="com.vongzh.holler.action.SET_DOCK_STYLE" />
             </intent-filter>
         </receiver>
 

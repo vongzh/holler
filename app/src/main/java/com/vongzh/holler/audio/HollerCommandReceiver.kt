@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.vongzh.holler.ui.FloatingTalkView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,12 @@ class HollerCommandReceiver : BroadcastReceiver() {
         const val ACTION_STOP = "com.vongzh.holler.action.STOP_TALK"
         const val ACTION_TOGGLE = "com.vongzh.holler.action.TOGGLE_TALK"
         const val ACTION_PLAY_PHRASE = "com.vongzh.holler.action.PLAY_PHRASE"
+        const val ACTION_SHOW_FLOATING = "com.vongzh.holler.action.SHOW_FLOATING"
+        const val ACTION_HIDE_FLOATING = "com.vongzh.holler.action.HIDE_FLOATING"
+        const val ACTION_EXPAND_FLOATING = "com.vongzh.holler.action.EXPAND_FLOATING"
+        const val ACTION_COLLAPSE_FLOATING = "com.vongzh.holler.action.COLLAPSE_FLOATING"
+        const val ACTION_SET_THEME_MODE = "com.vongzh.holler.action.SET_THEME_MODE"
+        const val ACTION_SET_DOCK_STYLE = "com.vongzh.holler.action.SET_DOCK_STYLE"
 
         /** 携带文本时直接 TTS 播放该文本（可扩展能力） */
         const val EXTRA_TEXT = "text"
@@ -111,6 +118,49 @@ class HollerCommandReceiver : BroadcastReceiver() {
                 } else {
                     CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
                         engine.playHintBeep(720.0)
+                    }
+                }
+            }
+
+            ACTION_SHOW_FLOATING -> {
+                FloatingTalkService.start(context)
+            }
+
+            ACTION_HIDE_FLOATING -> {
+                FloatingTalkService.stop(context)
+            }
+
+            ACTION_EXPAND_FLOATING -> {
+                FloatingTalkService.expand(context)
+            }
+
+            ACTION_COLLAPSE_FLOATING -> {
+                FloatingTalkService.collapse(context)
+            }
+
+            ACTION_SET_THEME_MODE -> {
+                val mode = intent.getIntExtra("mode", 0)
+                val store = PhraseStore(context)
+                store.themeMode = mode
+                FloatingTalkService.instance?.let { svc ->
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        svc.view?.isDarkTheme = (mode == 2)
+                        svc.view?.invalidate()
+                    }
+                }
+            }
+
+            ACTION_SET_DOCK_STYLE -> {
+                val styleStr = intent.getStringExtra("style") ?: "PEBBLE"
+                val style: FloatingTalkView.DockStyle = runCatching { FloatingTalkView.DockStyle.valueOf(styleStr) }.getOrDefault(FloatingTalkView.DockStyle.PEBBLE)
+                FloatingTalkService.instance?.let { svc ->
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        svc.view?.dockStyle = style
+                        if (svc.view?.mode != FloatingTalkView.Mode.EXPANDED) {
+                            svc.view?.collapseToDock()
+                        } else {
+                            svc.view?.invalidate()
+                        }
                     }
                 }
             }
